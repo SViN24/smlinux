@@ -5,7 +5,7 @@
 # Dependencies for many distros are listed on the github FAQ.  
 # Please let me know if incorrect or if you have another distro to add.
 # Sript updates from github.com/enigma9o7/smlinux unless AutoUpdate=0 in configfile.
-TIMESTAMP=2020-1021-1115
+TIMESTAMP=2020-1021-1214
 
 domake(){
 #Here We go & music to build to
@@ -516,13 +516,11 @@ elif [ "$PRESET" = "render96ex" ] || [ $(echo "$PRESET" | tr '[:upper:]' '[:lowe
 	PRESET=render96ex
 	GIT=render96/render96ex
 	BRANCH=master
-	EXTERNAL_DATA=1
 	TEXTSAVES=1
 	InstallR96=1
 elif [ "$PRESET" = "r96proto" ]; then
 	GIT=render96/render96ex
 	BRANCH=fastbuild_prototype
-	EXTERNAL_DATA=1
 	TEXTSAVES=1
 	DISCORDRPC=0
 	LEGACY_RES=0
@@ -530,7 +528,6 @@ elif [ "$PRESET" = "r96proto" ]; then
 elif [ "$PRESET" = "r96alpha" ]; then
 	GIT=render96/render96ex
 	BRANCH=alpha
-	EXTERNAL_DATA=1
 	TEXTSAVES=1
 	DISCORDRPC=0
 	CHEATER=0
@@ -923,7 +920,7 @@ fi
 
 dosgi(){
 if  [ "$TARGET_WEB" = 1 ] || ([ "$EXTERNAL_DATA" = 0 ] && [ ! "$PRESET" = "sm64nx" ]); then
-	if(whiptail --title "SGI Model Warning" --yesno "SGI Models are unlikely to work without external data or for web Target." 10 50 --yes-button "Continue Anyway" --no-button "Cancel" --defaultno); then
+	if(whiptail --title "SGI Model Warning" --yesno "SGI Models are unlikely to work without external data or for web Target." 10 50 --yes-button "Install Anyway" --no-button "Proceed without Models" --defaultno); then
 		pinkecho WARNING: SGI Models may not build correctly on anything besides sm64ex-nightly
 		echo Proceeding anyway, but it may not be succesful.
 	else
