@@ -1,0 +1,2454 @@
+#!/bin/bash
+# Super Mario 64 Install * Build * Update Script for Linux and macOS
+# This script will build & install Super Mario 64 under Ubuntu or macOS.
+# Other distros must edit config file when prompted to set Linux= command.
+# Dependencies for many distros are listed on the github FAQ.  
+# Please let me know if incorrect or if you have another distro to add.
+# Script updates from github.com/enigma9o7/smlinux unless AutoUpdate=0.
+TIMESTAMP=2020-1124-1922
+
+domake(){
+if [ -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET" ] && [ ! "$COMMAND" = "rebuild" ]; then
+	if [ -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET".old ]; then
+		rm -rf "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET".old
+	fi
+	mv "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET" "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET".old
+fi
+#Here We go & music to build to
+if command -v mplayer &> /dev/null && [ "$BuildMusic" = 1 ] && [ ! "$MAXJOBS" = 1 ] && [ -f "$SMLINUX"/File_Select_64_slowed_down.mp3 ]; then
+	if [ -f "$BASEPATH"/"$PRESET"/sound/samples/sfx_mario/0C.aiff ]; then
+		sh -c 'mplayer -nolirc -really-quiet '"$BASEPATH"/"$PRESET"'/sound/samples/sfx_mario/0C.aiff;mplayer -nolirc -really-quiet -volume 40 -loop 0 '"$SMLINUX"'/File_Select_64_slowed_down.mp3&'
+	elif [ -f "$BASEPATH"/sm64ex/sound/samples/sfx_mario/0C.aiff ]; then
+		sh -c 'mplayer -nolirc -really-quiet '"$BASEPATH"'/sm64ex/sound/samples/sfx_mario/0C.aiff;mplayer -nolirc -really-quiet -volume 40 -loop 0 '"$SMLINUX"'/File_Select_64_slowed_down.mp3&'
+	else
+		sh -c 'mplayer -nolirc -really-quiet -volume 40 -loop 0 '"$SMLINUX"'/File_Select_64_slowed_down.mp3&'
+	fi
+fi 
+if [ "$TARGET_WEB" = 1 ] && [ "$InstallHD" = 1 ]; then
+	sed -i.bak 's/TOTAL_MEMORY=20MB/TOTAL_MEMORY=40MB/g' "$BASEPATH"/"$PRESET"/Makefile
+elif [ "$TARGET_WEB" = 1 ]; then
+	sed -i.bak 's/TOTAL_MEMORY=20MB/TOTAL_MEMORY=30MB/g' "$BASEPATH"/"$PRESET"/Makefile
+fi
+if [ ! "$ANDROID" = 0 ]; then
+	exec 2> >(grep -v GtkDialog >&2) # Supress GTK Dialog Warnings
+	checkphone
+	if [ "$GOTPHONE" = 1 ]; then
+		zenity --info --text='\nPhone Detected.  Be sure to grant it debugging permission.\n\nExisting copies must also be uninstalled before this window closes itself.' --title="Preparing for Android Installation...." --width=510 &disown
+	else
+		echo "If you want the app installed to your Android device,"
+		echo "plug it in now via USB and grant it debugging permission."
+		zenity --info --text='\nIf you want the app installed to your Android device, attach it via USB.\n\nUnlock and grant your pc debugging permission before this window closes itself.\n\nExisting copies must also be uninstalled from device.' --title="Preparing for Android Installation...." --width=480 &disown
+		echo
+	fi
+fi
+if [ "$PRESET" = "sm64nx" ]; then
+	sed -i.bak 's/-no-pie -lpthread -lzstd/-no-pie -lpthread -lzstd -lstdc++fs/g' "$BASEPATH"/"$PRESET"/Makefile
+fi
+if [ "$BITS" = 32 ] && [ "$PRESET" = "sm64ex-coop" ] && [ ! -f "$BASEPATH"/"$PRESET"/91.patch ]; then
+	cd "$BASEPATH"/"$PRESET"
+	echo "Applying 32-bit workaround..."
+	wget -q https://github.com/djoslin0/sm64ex-coop/pull/91.patch
+	git apply 91.patch
+	DISCORD_SDK=0
+fi
+if [ -f "$SMLINUX"/buildlog.txt ]; then
+	mv -f "$SMLINUX"/buildlog.txt "$SMLINUX"/buildlog.old
+fi
+cd "$BASEPATH"/"$PRESET"
+echo VERSION=$VERSION RENDER_API=$RENDER_API TARGET_WEB=$TARGET_WEB TARGET_RPI=$TARGET_RPI OSX_BUILD=$OSX_BUILD TEXTSAVES=$TEXTSAVES  -j"$MAXJOBS"
+echo BETTERCAMERA=$BETTERCAMERA NODRAWINGDISTANCE=$NODRAWINGDISTANCE TEXTURE_FIX=$TEXTURE_FIX EXTERNAL_DATA=$EXTERNAL_DATA DISCORDRPC=$DISCORDRPC 
+echo LEGACY_RES=$LEGACY_RES IMMEDIATELOAD=$IMMEDIATELOAD DISCORD_SDK=$DISCORD_SDK ENABLE_OPENGL_LEGACY=$ENABLE_OPENGL_LEGACY DOS_GL=$DOS_GL 
+echo DEBUG=$DEBUG WINDOW_API=$WINDOW_API CONTROLLER_API=$SDL_API AUDIO_API=$SDL_API
+if [ "$OSX_BUILD" = 1 ]; then
+	echo CC=gcc-9 CXX=g++-9 CPP="cpp-9 -P" TARGET_OSX=1 
+	if [ "$EXTERNAL_DATA" = 1 ]; then
+	sed -i.bak 's/@echo -n > $(BASEPACK_LST)/#/g' "$BASEPATH"/"$PRESET"/Makefile
+	fi
+	time gmake CC=gcc-9 CXX=g++-9 CPP="cpp-9 -P" OSX_BUILD=1 TARGET_OSX=1 BETTERCAMERA=$BETTERCAMERA NODRAWINGDISTANCE=$NODRAWINGDISTANCE TEXTURE_FIX=$TEXTURE_FIX EXTERNAL_DATA=$EXTERNAL_DATA DISCORDRPC=$DISCORDRPC VERSION=$VERSION RENDER_API=$RENDER_API TARGET_WEB=$TARGET_WEB TEXTSAVES=$TEXTSAVES -j"$MAXJOBS" LEGACY_RES=$LEGACY_RES DEBUG=$DEBUG IMMEDIATELOAD=$IMMEDIATELOAD TARGET_RPI=$TARGET_RPI ENABLE_OPENGL_LEGACY=$ENABLE_OPENGL_LEGACY DOS_GL=$DOS_GL DISCORD_SDK=$DISCORD_SDK WINDOW_API=$WINDOW_API CONTROLLER_API=$SDL_API AUDIO_API=$SDL_API> "$SMLINUX"/buildlog.txt
+	if [ -f "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/libdiscord_game_sdk.dylib ] && [ ! -f "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/discord_game_sdk.dylib ]; then
+		cp "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/libdiscord_game_sdk.dylib "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/discord_game_sdk.dylib
+	fi
+elif [ "$TARGET_RPI" = 1 ] && [ `uname -m` = "aarch64" ]; then
+	echo TARGET_ARCH=arm64
+	time make TARGET_ARCH=arm64 BETTERCAMERA=$BETTERCAMERA NODRAWINGDISTANCE=$NODRAWINGDISTANCE TEXTURE_FIX=$TEXTURE_FIX EXTERNAL_DATA=$EXTERNAL_DATA DISCORDRPC=$DISCORDRPC VERSION=$VERSION RENDER_API=$RENDER_API TARGET_WEB=$TARGET_WEB TEXTSAVES=$TEXTSAVES -j"$MAXJOBS" LEGACY_RES=$LEGACY_RES DEBUG=$DEBUG IMMEDIATELOAD=$IMMEDIATELOAD TARGET_RPI=$TARGET_RPI ENABLE_OPENGL_LEGACY=$ENABLE_OPENGL_LEGACY DOS_GL=$DOS_GL DISCORD_SDK=$DISCORD_SDK WINDOW_API=$WINDOW_API CONTROLLER_API=$SDL_API AUDIO_API=$SDL_API> "$SMLINUX"/buildlog.txt
+else
+	time make BETTERCAMERA=$BETTERCAMERA NODRAWINGDISTANCE=$NODRAWINGDISTANCE TEXTURE_FIX=$TEXTURE_FIX EXTERNAL_DATA=$EXTERNAL_DATA DISCORDRPC=$DISCORDRPC VERSION=$VERSION RENDER_API=$RENDER_API TARGET_WEB=$TARGET_WEB TEXTSAVES=$TEXTSAVES -j"$MAXJOBS" LEGACY_RES=$LEGACY_RES DEBUG=$DEBUG IMMEDIATELOAD=$IMMEDIATELOAD TARGET_RPI=$TARGET_RPI ENABLE_OPENGL_LEGACY=$ENABLE_OPENGL_LEGACY DOS_GL=$DOS_GL DISCORD_SDK=$DISCORD_SDK WINDOW_API=$WINDOW_API CONTROLLER_API=$SDL_API AUDIO_API=$SDL_API> "$SMLINUX"/buildlog.txt
+fi
+if [ -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET" ]; then
+	cp "$SMLINUX"/smlinuxcfg.txt "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/smlinuxcfg.logged
+	date >> "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/smlinuxcfg.logged
+fi
+if [ ! "$ANDROID" = 0 ]; then
+	if [ "ARMONLY" = 1 ]; then
+		echo Removing x86 x64
+		sed -i.bak "s/v8a', 'x86', 'x86_64'/v8a'/g" "$BASEPATH"/"$PRESET"/../../build.gradle
+	fi
+	if [ "$BRANCH" = "sm64ex" ] || [ "$BRANCH" = "sm64ex_nightly" ]; then
+		make BETTERCAMERA=$BETTERCAMERA NODRAWINGDISTANCE=$NODRAWINGDISTANCE TEXTURE_FIX=$TEXTURE_FIX EXTERNAL_DATA=$EXTERNAL_DATA DISCORDRPC=$DISCORDRPC VERSION=$VERSION RENDER_API=$RENDER_API TARGET_WEB=$TARGET_WEB TEXTSAVES=$TEXTSAVES -j"$MAXJOBS" LEGACY_RES=$LEGACY_RES DEBUG=$DEBUG  WINDOW_API=$WINDOW_API CONTROLLER_API=$WINDOW_API AUDIO_API=$WINDOW_API> "$SMLINUX"/buildlog.txt
+		sed -i.bak '/include $(BUILD_SHARED_LIBRARY)/i TEXTURE_FIX ?= 0\nNODRAWINGDISTANCE ?= 0\nBETTERCAMERA ?= 0\nifeq ($(TEXTURE_FIX),1)\n  LOCAL_CFLAGS += -DTEXTURE_FIX\nendif\nifeq ($(NODRAWINGDISTANCE),1)\n  LOCAL_CFLAGS += -DNODRAWINGDISTANCE\nendif\nifeq ($(BETTERCAMERA),1)\n  LOCAL_CFLAGS += -DBETTERCAMERA\nendif\n' "$BASEPATH"/"$PRESET"/Android.mk
+	fi
+	if [ ! -f "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64."$VERSION".f3dex2* ]; then
+		if [ -f /usr/bin/mplayer ] && [ -f "$SMLINUX"/File_Select_64_slowed_down.mp3 ]; then
+			killall -q -y1h mplayer
+		fi
+		return
+	else
+		echo
+		echo Native Build Succesful.
+	fi
+	cd "$BASEPATH"/"$ANDROID"
+	checkphone
+	bluecho Android Package Kit build starting...
+	killall -q zenity
+	if [ "$GOTPHONE" = 1 ]; then
+		echo Do not disconnect phone until complete.
+		echo
+		TOUCH_CONTROLS=$TOUCH_CONTROLS BETTERCAMERA=$BETTERCAMERA NODRAWINGDISTANCE=$NODRAWINGDISTANCE TEXTURE_FIX=$TEXTURE_FIX EXTERNAL_DATA=$EXTERNAL_DATA VERSION=$VERSION TEXTSAVES=$TEXTSAVES ./gradlew installDebug -q
+	else
+		pinkecho Warning: Phone not detected, building without installing.
+		echo
+		TOUCH_CONTROLS=$TOUCH_CONTROLS BETTERCAMERA=$BETTERCAMERA NODRAWINGDISTANCE=$NODRAWINGDISTANCE TEXTURE_FIX=$TEXTURE_FIX EXTERNAL_DATA=$EXTERNAL_DATA VERSION=$VERSION TEXTSAVES=$TEXTSAVES ./gradlew assembleDebug -q
+	fi
+	if [ "ARMONLY" = 1 ]; then
+		rm app/build.gradle
+		git checkout app/build.gradle
+	fi
+	cd "$BASEPATH"/"$PRESET"
+	rm Android.mk
+	git checkout Android.mk
+	if [ "$EXTERNAL_DATA" = 1 ] && [ "$InstallHD" = 1 ] && [ -d "$BASEPATH"/"$ANDROID"/app/build/outputs/apk/debug ]; then
+		bluecho Preparing external data for transfer...
+		cd "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res
+		if [ -f "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET".old/res/hdbase.zip ]; then
+			cp "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET".old/res/hdbase.zip .
+		elif [ -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET".old/res ]; then
+			cp -rn "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET".old/res/* .
+		fi
+		unzip -n -q base
+		zip -r -0 -u -q hdbase gfx sound
+		ln -s "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res/hdbase.zip "$BASEPATH"/"$ANDROID"/app/build/outputs/apk/debug/hdbase.zip
+		rm -rf sound gfx
+	elif [ "$EXTERNAL_DATA" = 1 ] && [ -d "$BASEPATH"/"$ANDROID"/app/build/outputs/apk/debug ]; then
+		ln -s "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res/base.zip "$BASEPATH"/"$ANDROID"/app/build/outputs/apk/debug/base.zip
+	fi
+	checkphone
+	if [ "$GOTPHONE" = 1 ] && [ "$EXTERNAL_DATA" = 1 ]; then
+		echo
+		echo Pushing external assets to phone...
+		if [[ ! `adb shell ls /sdcard/Android/data/com.vdavid003.sm64port 2> /dev/null` ]]; then
+			adb shell mkdir /sdcard/Android/data/com.vdavid003.sm64port
+			adb shell mkdir /sdcard/Android/data/com.vdavid003.sm64port/files
+		fi
+		if [ -f "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res/hdbase.zip ]; then
+			adb push "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res/hdbase.zip /sdcard/Android/data/com.vdavid003.sm64port/files/
+		elif [ "$EXTERNAL_DATA" = 1 ] && [ -f "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res/base.zip ]; then
+			adb push "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res/base.zip /sdcard/Android/data/com.vdavid003.sm64port/files/
+		fi
+	fi
+elif [ "$TARGET" = "dos" ]; then
+	ln -s "$BASEPATH"/djgpp/csdpmi/CWSDPMI.EXE "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/
+elif [ "$GIT" = "teamsalta/sm64nx" ] || ( [ "$TARGET_WEB" = 1 ] && [ "$InstallHD" = 1 ] ) || [ "$GIT" = "djoslin0/sm64ex-coop" ]; then
+	cd "$BASEPATH"/"$PRESET"
+	rm Makefile
+	git checkout Makefile
+elif [ "$LEGACY_RES" = 0 ] && [ -f "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res/awesome-legacy.zip ]; then
+	bluecho Preparing base resource pack...
+	cd "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res
+	if [ -f base.zip ]; then
+		rm base.zip
+	fi
+	mv awesome-legacy.zip base.zip
+	unzip -q base texts
+	zip -d base texts
+elif [ -f  "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res/awesome-legacy.zip ]; then
+	echo Renaming base resource pack base.zip...
+		cd "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res
+		if [ -f base.zip ]; then
+			rm base.zip
+		fi
+		mv awesome-legacy.zip base.zip
+elif [ "$LEGACY_RES" = 0 ] && [ -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res/sound ]; then
+	cd "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res
+	bluecho Creating base resource pack...
+	zip -q0r base gfx sound
+	if [ -f base.zip ]; then
+		rm -rf gfx sound
+	fi
+fi
+if [ -f /usr/bin/mplayer ] && [ -f "$SMLINUX"/File_Select_64_slowed_down.mp3 ] && [ "$BuildMusic" = 1 ]; then
+	killall -q -y1h mplayer
+fi
+}
+
+extractrom(){
+if [ ! -f "$SMLINUX"/"$VERSION"/textures/water/jrb_textures.0B800.rgba16.png ]; then
+	mkdir "$SMLINUX"/"$VERSION"
+	cd "$SMLINUX"/"$VERSION"
+	ln -s "$BASEPATH"/"$PRESET"/tools
+	ln -s "$BASEPATH"/"$PRESET"/sm64."$VERSION".sha1
+	ln -s "$BASEPATH"/"$PRESET"/assets.json
+	ln -s "$SMLINUX"/baserom."$VERSION".z64
+	bluecho Extracting ROM...
+	time "$BASEPATH"/"$PRESET"/extract_assets.py "$VERSION"
+	rm tools sm64."$VERSION".sha1 assets.json
+fi
+echo Copying previously extracted assets...
+cp -rn "$SMLINUX"/"$VERSION"/* "$BASEPATH"/"$PRESET"
+}
+
+msysdepends(){
+	for package in python3 python3-pip git make unzip zip unrar p7zip nano 
+do
+	pacman -S $package --noconfirm --needed
+done
+if [ "$BITS" = 64 ]; then
+	for package in mingw-w64-x86_64-python-pyqt5 mingw-w64-x86_64-python-numpy mingw-w64-x86_64-glew mingw-w64-x86_64-SDL2 mingw-w64-x86_64-gcc 
+do
+	pacman -S $package --noconfirm --needed
+done
+else #32-bit
+	for package in mingw-w64-i686-python-pyqt5 mingw-w64-i686-python-numpy mingw-w64-i686-glew mingw-w64-i686-SDL2 mingw-w64-i686-gcc 
+do
+	pacman -S $package --noconfirm --needed
+done
+fi
+}
+
+pathupdate(){
+echo old smlinux file structure found....
+SMLINUX="$SHARE"/sm64pc
+loadconfig
+SMLINUX="$SHARE"/smlinux
+if [ ! -d "$SHARE"/smlinux/.git ] &&  [ -d "$SHARE"/sm64pc/.git ]; then
+	echo Moving smlinux repository to "$SMLINUX"
+	if [ -d "$SMLINUX" ]; then
+		mv "$SMLINUX" "$SMLINUX".old
+	fi
+	mv "$SHARE"/sm64pc "$SMLINUX"
+	cd "$SMLINUX"
+	if [ -f sm64config.txt ] || [ -f sm64_save_file.bin ]; then
+		mkdir "$SHARE"/sm64pc
+		mv sm64* "$SHARE"/sm64pc
+	fi
+	for preset in sm64ex sm64ex-coop cheaterex sm64pc androidex/app/jni/src sm64ex.old sm64ex-coop.old cheaterex.old sm64pc.old androidex.old/app/jni/src
+do
+	if [ -d "$BASEPATH"/"$preset"/build/"$VERSION"_"$TARGET"/res/.git ] && [ -d "$BASEPATH"/"$preset"/build/"$VERSION"_"$TARGET"/res/gfx ]; then
+		echo Moving Cleaner Aesthetics Textures repository to:
+		echo "$SHARE"/smlinux/Cleaner-Aesthetics
+		mkdir Cleaner-Aesthetics
+		mv "$BASEPATH"/"$preset"/build/"$VERSION"_"$TARGET"/res/.git Cleaner-Aesthetics
+		mv "$BASEPATH"/"$preset"/build/"$VERSION"_"$TARGET"/res/gfx Cleaner-Aesthetics
+		ln -s "$SMLINUX"/Cleaner-Aesthetics/gfx "$BASEPATH"/"$preset"/build/"$VERSION"_"$TARGET"/res/gfx
+		break
+	fi
+done
+	for preset in sm64ex sm64ex-coop cheaterex sm64pc androidex/app/jni/src
+do
+	if [ -d "$BASEPATH"/"$preset"/build/"$VERSION"_"$TARGET"/res/.git ] && [ -d "$BASEPATH"/"$preset"/build/"$VERSION"_"$TARGET"/res/gfx ]; then
+		rm -rf $BASEPATH"/"$preset"/build/"$VERSION"_"$TARGET"/res/gfx $BASEPATH"/"$preset"/build/"$VERSION"_"$TARGET"/res/.git
+		ln -s "$SMLINUX"/Cleaner-Aesthetics/gfx "$BASEPATH"/"$preset"/build/"$VERSION"_"$TARGET"/res/gfx
+	fi
+done
+	for preset in render96ex r96alpha r96proto render96ex.old r96alpha.old r96proto.old
+do
+	if [ -d "$BASEPATH"/"$preset"/build/"$VERSION"_"$TARGET"/res/.git ] && [ -d "$BASEPATH"/"$preset"/build/"$VERSION"_"$TARGET"/res/gfx ]; then
+		echo Moving Render 96 HD Texture repository to:
+		echo "$SHARE"/smlinux/RENDER96-HD-TEXTURE-PACK...
+		mkdir RENDER96-HD-TEXTURE-PACK
+		mv "$BASEPATH"/"$preset"/build/"$VERSION"_"$TARGET"/res/.git RENDER96-HD-TEXTURE-PACK
+		mv "$BASEPATH"/"$preset"/build/"$VERSION"_"$TARGET"/res/gfx RENDER96-HD-TEXTURE-PACK
+		ln -s "$SMLINUX"/RENDER96-HD-TEXTURE-PACK/gfx "$BASEPATH"/"$preset"/build/"$VERSION"_"$TARGET"/res/gfx
+		break
+	fi
+done
+	for preset in render96ex r96alpha r96proto
+do
+	if [ -d "$BASEPATH"/"$preset"/build/"$VERSION"_"$TARGET"/res/.git ] && [ -d "$BASEPATH"/"$preset"/build/"$VERSION"_"$TARGET"/res/gfx ]; then
+		rm -rf "$BASEPATH"/"$preset"/build/"$VERSION"_"$TARGET"/res/gfx "$BASEPATH"/"$preset"/build/"$VERSION"_"$TARGET"/res/.git
+		ln -s "$SMLINUX"/RENDER96-HD-TEXTURE-PACK/gfx "$BASEPATH"/"$preset"/build/"$VERSION"_"$TARGET"/res/gfx
+	fi
+done
+	for preset in sm64ex sm64nx sm64ex-coop render96ex cheaterex sm64dos sm64-portweb sm64exweb sm64-port-android-base androidex sm64pc sm64-port r96proto r96alpha emm-ody coop-unstable
+do
+	if [ -d "$BASEPATH"/"$preset" ]; then
+		for version in us jp eu sh
+	do
+		if [ -f "$SMLINUX"/baserom."$version".z64 ] && [ -f "$BASEPATH"/"$preset"/baserom."$version".z64 ]; then
+			rm "$BASEPATH"/"$preset"/baserom."$version".z64
+			ln -s "$SMLINUX"/baserom."$version".z64 "$BASEPATH"/"$preset"/baserom."$version".z64
+		fi
+	done
+	fi
+done
+fi
+}
+
+macprep(){
+export PATH="/usr/local/opt/make/libexec/gnubin:$PATH"
+if [ "$GIT" = "djoslin0/sm64ex-coop" ]; then
+	sed -i.bak 's/sdk\/discord_game_sdk.dylib/sdk\/libdiscord_game_sdk.dylib/g' "$BASEPATH"/"$PRESET"/Makefile
+	cp "$BASEPATH"/"$PRESET"/lib/discordsdk/discord_game_sdk.dylib "$BASEPATH"/"$PRESET"/lib/discordsdk/libdiscord_game_sdk.dylib
+elif [ -f "$BASEPATH"/"$PRESET"/tools/n64graphics_ci_dir/exoquant/exoquant.c ]; then
+	sed -i.bak 's/#include <malloc.h>/\/\/ # include <malloc.h>/g' "$BASEPATH"/"$PRESET"/tools/n64graphics_ci_dir/exoquant/exoquant.c
+fi
+if [ -d /usr/local/opt/sdl2/include/SDL2 ] && [ ! -d "$BASEPATH"/"$PRESET"/include/SDL2 ]; then
+	ln -s /usr/local/opt/sdl2/include/SDL2 "$BASEPATH"/"$PRESET"/include
+fi
+sed -i.bak 's|VERSION_CFLAGS += -DOSX_BUILD|VERSION_CFLAGS += -Wno-implicit-function-declaration -DOSX_BUILD|g' "$BASEPATH"/"$PRESET"/Makefile # thanks dropbear
+sed -i.bak 's|CFLAGS := -I../include -I. -Wall -Wextra|CFLAGS := -I../include -I. -Wall -Wno-implicit-function-declaration -Wextra|g' "$BASEPATH"/"$PRESET"/tools/Makefile # thanks dropbear
+sed -i.bak '855i\
+8spaces8elif a == "-Wno-implicit-function-declaration":
+' "$BASEPATH"/"$PRESET"/tools/assemble_sound.py # thanks dropbear
+sed -i.bak '856i\
+12spaces1212print("ignoring")
+' "$BASEPATH"/"$PRESET"/tools/assemble_sound.py # thanks dropbear
+sed -i.bak 's|8spaces8elif|        elif|g' "$BASEPATH"/"$PRESET"/tools/assemble_sound.py
+sed -i.bak 's|12spaces1212print|            print|g' "$BASEPATH"/"$PRESET"/tools/assemble_sound.py
+cd "$BASEPATH"/"$PRESET"/tools
+if [ ! -f skyconv ]; then
+	greenecho [3.5] Preparing N64 Tools for macOS...
+	gmake CC=gcc-9 CXX=g++-9 CPP="cpp-9 -P" OSX_BUILD=1 TARGET_OSX=1 -j"$MAXJOBS"
+fi
+if [ ! -f skyconv ]; then
+	pinkecho Warning: Tool build attempt failed with gcc-9.  Trying other compilers...
+	gmake OSX_BUILD=1 TARGET_OSX=1 -j"$MAXJOBS"
+	make
+fi
+if [ ! -f skyconv ]; then
+	redecho Failed to build N64 tools.  smlinux cannot handle macOS toolchain.
+	redecho Please report problem to smlinux development team for resolution.
+	endnow
+fi
+}
+theend(){
+if [ "$TARGET" = "web" ]; then
+	echo
+	echo Python webserver will remain running until you kill python3.
+	echo Unless you forward a port you cannot connect from outside your local network.
+	pinkecho Warning: emsdk environment is loaded.  Do not try to
+	echo use this shell to build.  Exit and open new shell. 
+elif [ "$TARGET" = "dos" ]; then
+	echo
+	pinkecho Warning: djgpp environment is loaded.  Do not try to 
+	pinkecho use this shell to build.  Exit and open new shell. 
+fi
+echo
+tput setab 0  # black background
+tput setaf 6  # cyan text
+echo smlinux is complete. 
+echo smlinux internal timestamp "$TIMESTAMP".
+if [ -d "$BASEPATH"/"$PRESET"/.git ]; then
+	echo "$GIT"-"$BRANCH" last commit:
+	cd "$BASEPATH"/"$PRESET"
+	git log -1 --format=%cd
+fi
+greenecho You may close or exit this terminal window.
+tput setaf 7 # back to white
+
+if [ "$MSYS" = 1 ] && command -v zenity &> /dev/null; then
+	zenity --info --text="Shits done yo." &disown
+fi
+echo
+exit
+}
+
+
+endnow(){
+redecho "smlinux ending incomplete.  Contact #help-desk for support."
+if [ "$TARGET_RPI" = 0 ]; then
+	"$OPEN" https://discord.gg/Ub6YHRm &
+fi
+echo Your smlinux internal timestamp is "$TIMESTAMP".
+echo
+exit
+}
+
+# 0    black     COLOR_BLACK     0,0,0
+# 1    red       COLOR_RED       1,0,0
+# 2    green     COLOR_GREEN     0,1,0
+# 3    yellow    COLOR_YELLOW    1,1,0
+# 4    blue      COLOR_BLUE      0,0,1
+# 5    magenta   COLOR_MAGENTA   1,0,1
+# 6    cyan      COLOR_CYAN      0,1,1
+# 7    white     COLOR_WHITE     1,1,1
+greenecho(){
+tput setab 0  # black background
+tput setaf 2  # greeen text
+tput bold
+echo "$@"
+tput sgr0 # reset
+tput setab 0  # black background
+tput setaf 7 # white text
+}
+pinkecho(){
+tput setab 0  # black background
+tput setaf 5  # magenta text
+tput bold
+echo "$@"
+tput sgr0 # reset
+tput setab 0  # black background
+tput setaf 7 # white text
+}
+redecho(){
+tput setab 0  # black background
+tput setaf 1  # red text
+tput bold
+echo "$@"
+tput sgr0 # reset
+tput setab 0  # black background
+tput setaf 7 # white text
+}
+bluecho(){
+tput setab 0  # black background
+tput setaf 4  # red text
+tput bold
+echo "$@"
+tput sgr0 # reset
+tput setab 0  # black background
+tput setaf 7 # white text
+}
+
+androidsdk(){
+if command -v sudo &> /dev/null && command -v apt &> /dev/null && [ ! -d /usr/lib/android-sdk ]; then
+	sudo apt install android-sdk openjdk-8-jdk -y
+fi
+if [ ! -f "$BASEPATH"/android-sdk/tools/bin/sdkmanager ]; then
+	cd "$BASEPATH"
+	wget -q https://dl.google.com/android/repository/commandlinetools-linux-6609375_latest.zip
+	unzip -o commandlinetools-linux-6609375_latest -d android-sdk
+	rm commandlinetools-linux-6609375_latest.zip
+fi
+PATH="$BASEPATH"/android-sdk/tools/bin:$PATH
+export PATH="$BASEPATH"/android-sdk/tools/bin:$PATH
+export ANDROID_HOME="$BASEPATH"/android-sdk
+if [ ! -d "$BASEPATH"/android-sdk/licenses ]; then
+	yes | sdkmanager --sdk_root=${ANDROID_HOME} --licenses
+fi
+if [ ! -d "$BASEPATH"/android-sdk/ndk-bundle ]; then
+	sdkmanager --install --sdk_root=${ANDROID_HOME} ndk-bundle
+fi
+}
+
+checkphone(){
+adb get-state 1>/dev/null 2>&1 && GOTPHONE=1
+}
+
+gcccheck(){
+if [ -f /usr/bin/gcc ] || [ -f /bin/gcc ]; then
+	if [ `gcc -dumpfullversion -dumpversion` \> 7.99 ]; then
+		echo gcc 8 or higher confirmed
+		return
+	elif [ `gcc-9 -dumpfullversion -dumpversion` \> 7.99 ]; then
+		if [ ! "$OSX_BUILD" = 1 ]; then
+			pinkecho Warning: Shouldnt be here should be mac only.
+		fi
+		echo gcc-9 confirmed
+		return
+	fi
+fi 
+if command -v sudo &> /dev/null && command -v apt &> /dev/null; then		
+	echo Attempting to install gcc 9.
+	echo | sudo add-apt-repository ppa:ubuntu-toolchain-r/test
+	sudo apt install -y g++-9
+	sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-9 80 --slave /usr/bin/g++ g++ /usr/bin/g++-9 --slave /usr/bin/gcov gcov /usr/bin/gcov-9
+	if [ `gcc -dumpversion` \> 8.99 ]; then
+		echo gcc 9 succesfully installed
+		return
+	else
+		echo Attempting to install gcc 8.
+		sudo apt install -y g++-8
+		sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-8 80 --slave /usr/bin/g++ g++ /usr/bin/g++-8 --slave /usr/bin/gcov gcov /usr/bin/gcov-8
+		if [ `gcc -dumpversion` \> 7.99 ]; then
+			echo gcc 8 succesfully installed
+			return
+		fi
+	fi			
+fi
+redecho "ERROR: smlinux doesn't think your C compiler is not new enough for sm64nx."
+echo "gcc -dumpfullversion must report 8 or higher."
+echo "Please install it then rerun smlinux, or use another repo."
+echo "Sometimes its wrong - if you have gcc 8/9/10 and wish to continue, do so."
+echo
+exec 2> >(grep -v GtkDialog >&2) # Supress GTK Dialog Warnings
+if zenity --question --text="sm64nx requires gcc 8 or newer and was not detected.\nDo you wish to continue anyway incase smlinux is reading gcc -dumpversion wrong,\nor abort so you can install it then run smlinux again?" --title "GCC 8 or newer not detected" --ok-label="Abort" --cancel-label="Continue" --width 550; then
+	exit
+fi
+}
+
+domymenu(){	
+if [ ! -f "$BASEPATH"/"$PRESET"/enhancements/menu-arrows.patch ]; then
+	if [ "$PRESET" = "androidex" ] || [ "$GIT" = "sm64pc/sm64ex" ] || [ "$GIT" = "render96/render96ex" ] || [ "$GIT" = "djoslin0/sm64ex-coop" ]; then
+		bluecho Applying menu arrows...
+		cd "$BASEPATH"/"$PRESET"
+		cp "$SMLINUX"/menu-arrows.patch enhancements
+		git apply enhancements/menu-arrows.patch
+	fi
+fi
+}
+
+vettrom(){
+local romfile="$SMLINUX"/baserom."$VERSION"
+if [ "$VERSION" = "us" ]; then
+	hashcheck(){ 
+	HASH=`sha1sum "$romfile".z64 | grep 9bef1128717f958171a4afac3ed78ee2bb4e86ce`
+	}
+elif [ "$VERSION" = "jp" ]; then
+	hashcheck(){ 
+	HASH=`sha1sum "$romfile".z64 | grep 8a20a5c83d6ceb0f0506cfc9fa20d8f438cafe51`
+	}
+elif [ "$VERSION" = "eu" ]; then
+	hashcheck(){
+	HASH=`sha1sum "$romfile".z64 | grep 4ac5721683d0e0b6bbb561b58a71740845dceea9`
+	}
+elif ["$VERSION" = "sh" ]; then
+	hashcheck(){
+	HASH=`sha1sum "$romfile".z64 | grep 3f319ae697533a255a1003d09202379d78d5a2e0`
+	}
+fi
+hashcheck
+if [ "$HASH" = "" ]; then
+	echo ROM failed initial hash check - attempting format conversion...
+	cd "$SMLINUX"
+	if [ ! -f n64swap.py ]; then
+		echo Getting conversion tools...
+		wget https://github.com/Brawl345/N64Swap/raw/master/n64swap.py
+	fi
+	# Try V64
+	mv "$romfile".z64 "$romfile".v64
+	python3 n64swap.py "$romfile".v64 "$romfile".z64
+	if [ -f "$romfile".z64 ]; then
+		hashcheck
+		if [ ! "$HASH" = "" ]; then
+			echo Conversion from V64 succesful.
+		else
+			if [ -f "$romfile".z64 ]; then
+				rm "$romfile".z64
+			fi
+			# Try N64
+			mv "$romfile".v64 "$romfile".n64
+			python3 n64swap.py "$romfile".v64 "$romfile".z64
+			if [ -f "$romfile".z64 ]; then
+				hashcheck
+				if [ ! "$HASH" = "" ]; then
+					echo Conversion from N64 succesful.
+				elif [ -f "$romfile".* ]; then
+					rm "$romfile".*
+					echo Conversion still did not produce correct sha1sum.
+				else
+					echo Conversion still did not produce correct sha1sum.
+				fi
+			fi
+		fi
+	fi
+fi
+}
+
+makeconfig(){
+if [ ! -d "$SMLINUX" ]; then
+	mkdir "$SMLINUX"
+fi
+echo '# PRESET supports: sm64pc sm64-port sm64nx sm64ex sm64ex-coop cheaterex 
+# ALSO render96ex r96alpha sm64dos sm64exweb androidex AND MORE IN FAQ!
+PRESET=cheaterex
+InstallHD=1
+InstallSGI=0
+FPS60=0
+# [ Options for sm64ex and its forks ] 
+DYNOS=0
+CHEATER=0
+NODRAWINGDISTANCE=1
+EXTERNAL_DATA=1
+BETTERCAMERA=1
+TEXTURE_FIX=1
+DISCORDRPC=1
+TEXTSAVES=0
+RENDER_API=GL
+SDL_API=SDL2
+# [ Additional Options ]
+# Set MAXJOBS=n to limit cpu threads used during compile, i.e. MAXJOBS=1
+MAXJOBS=
+# BASEPATH must exist and is where folders for each repo will be placed
+BASEPATH=$HOME
+# Set CONFIG=0 If you do not want to be automatically prompted before building
+CONFIG=1
+# Set BuildMusic=0 to prevent smlinux playing background music during compile
+BuildMusic=1
+# Set AutoUpdate=0 to prevent smlinux updating itself
+AutoUpdate=1
+# [ Advanced Make Flags ]
+# VERSION supports us jp eu (must correspond to rom version)
+VERSION=us
+DEBUG=0
+TARGET_WEB=0
+TARGET_RPI=0
+# [ Options for sm64ex-coop only ]
+DISCORD_SDK=1
+IMMEDIATELOAD=1
+# [ Options for render96ex only ]
+LEGACY_RES=0
+# [ Options for Android only ]
+TOUCH_CONTROLS=1
+ARMONLY=1
+# [ Options for DOS only ]
+ENABLE_OPENGL_LEGACY=1 
+# DOS_GL Supports dmesa (glide) or osmesa
+DOS_GL=osmesa
+ENABLE_OPENGL_LEGACY=1
+# [ GIT and BRANCH are ignored when PRESET is known ]
+GIT=
+BRANCH=
+# [ Depracated Linux dependencies installation command string. ]
+FLAGS=' >"$SMLINUX"/smlinuxcfg.txt
+}
+
+loadconfig(){
+BuildMusic=1
+TARGET_RPI=0
+TEXTSAVES=0
+TOUCH_CONTROLS=1
+LEGACY_RES=0
+BASEPATH=$HOME
+ARMONLY=1
+DEBUG=0
+IMMEDIATELOAD=1
+DOS_GL=osmesa
+ENABLE_OPENGL_LEGACY=1
+ANDROID=0
+InstallSGI=0
+DISCORD_SDK=1
+FPS60=0
+CHEATER=0
+DYNOS=0
+GIT=sm64pc/sm64ex
+BRANCH=master
+if [ -f "$SMLINUX"/smlinuxcfg.txt ]; then
+	source "$SMLINUX"/smlinuxcfg.txt
+else
+	pinkecho Warning: smlinuxcfg.txt not found.  Creating and loading default...
+	makeconfig
+	source "$SMLINUX"/smlinuxcfg.txt
+fi
+if [ -z $PRESET ] && [ ! -z $REPO ]; then
+	PRESET="$REPO"
+elif [ -z $PRESET ]; then
+	PRESET=sm64-"$BRANCH"
+elif [ "$PRESET" = "UserDefined" ]; then
+	PRESET=userdef-"$BRANCH"
+fi
+if [ "$PRESET" = "sm64pc" ] || [ $(echo "$PRESET" | tr '[:upper:]' '[:lower:]') = "sm64pc" ]; then
+	PRESET=sm64pc
+	GIT=sm64ex/sm64pc
+	BRANCH=master
+	CHEATER=0
+	DYNOS=0
+elif [ "$PRESET" = "sm64-port" ] || [ $(echo "$PRESET" | tr '[:upper:]' '[:lower:]') = "sm64-port" ]; then
+	PRESET=sm64-port
+	GIT=sm64-port/sm64-port
+	BRANCH=master
+	EXTERNAL_DATA=0
+	CHEATER=0
+	DYNOS=0
+elif [ "$PRESET" = "sm64ex" ] || [ $(echo "$PRESET" | tr '[:upper:]' '[:lower:]') = "sm64ex" ]; then
+	PRESET=sm64ex
+	GIT=sm64pc/sm64ex
+	BRANCH=nightly
+elif [ "$PRESET" = "sm64exweb" ] || [ $(echo "$PRESET" | tr '[:upper:]' '[:lower:]') = "sm64exweb" ]; then
+	PRESET=sm64exweb
+	GIT=sm64pc/sm64ex
+	BRANCH=nightly
+	TARGET_WEB=1
+	TARGET_RPI=0
+	EXTERNAL_DATA=0
+	DISCORDRPC=0
+	FPS60=0
+elif [ "$PRESET" = "sm64-portweb" ] || [ $(echo "$PRESET" | tr '[:upper:]' '[:lower:]') = "sm64-portweb" ]; then
+	PRESET=sm64-portweb
+	GIT=sm64-port/sm64-port
+	BRANCH=master
+	TARGET_WEB=1
+	TARGET_RPI=0
+	EXTERNAL_DATA=0
+	DISCORDRPC=0
+	FPS60=0
+	CHEATER=0
+	DYNOS=0
+elif [ "$PRESET" = "sm64nx" ] || [ $(echo "$PRESET" | tr '[:upper:]' '[:lower:]') = "sm64nx" ]; then
+	PRESET=sm64nx
+	GIT=teamsalta/sm64nx
+	BRANCH=master
+	EXTERNAL_DATA=0
+	FPS60=0
+	CHEATER=0
+	DYNOS=0
+elif [ "$PRESET" = "render96ex" ] || [ $(echo "$PRESET" | tr '[:upper:]' '[:lower:]') = "render96ex" ] || [ $(echo "$PRESET" | tr '[:upper:]' '[:lower:]') = "render96" ] || [ $(echo "$PRESET" | tr '[:upper:]' '[:lower:]') = "r96ex" ]; then
+	PRESET=render96ex
+	GIT=render96/render96ex
+	BRANCH=master
+	TEXTSAVES=1
+	LEGACY_RES=1
+	# DYNOS=0
+elif [ "$PRESET" = "r96proto" ] || [ $(echo "$PRESET" | tr '[:upper:]' '[:lower:]') = "r96proto" ]; then
+	PRESET=r96proto
+	GIT=render96/render96ex
+	BRANCH=fastbuild_prototype
+	TEXTSAVES=1
+	DISCORDRPC=0
+	CHEATER=0
+	DYNOS=0
+elif [ "$PRESET" = "r96alpha" ] || [ $(echo "$PRESET" | tr '[:upper:]' '[:lower:]') = "r96alpha" ]; then
+	PRESET=r96alpha
+	GIT=render96/render96ex
+	BRANCH=alpha
+	TEXTSAVES=1
+	DISCORDRPC=0
+	EXTERNAL_DATA=1
+elif [ "$PRESET" = "cheaterex" ] || [ $(echo "$PRESET" | tr '[:upper:]' '[:lower:]') = "cheaterex" ]; then
+	PRESET=cheaterex
+	GIT=s4Ys369/cheaterex
+	BRANCH=nightly
+	FPS60=0
+	CHEATER=0
+	DYNOS=0
+elif [ "$PRESET" = "emm-ody" ] || [ $(echo "$PRESET" | tr '[:upper:]' '[:lower:]') = "EMM-ODY" ]; then
+	PRESET=emm-ody
+	GIT=s4Ys369/cheaterex
+	BRANCH=emm-ody
+	FPS60=0
+	CHEATER=0
+	DYNOS=0
+elif  [ "$PRESET" = "coop-unstable" ] || [ $(echo "$PRESET" | tr '[:upper:]' '[:lower:]') = "coop-unstable" ]; then
+	PRESET=coop-unstable
+	GIT=djoslin0/sm64ex-coop
+	BRANCH=unstable
+	NODRAWINGDISTANCE=1
+	FPS60=0
+	CHEATER=0
+	DYNOS=0
+elif  [ "$PRESET" = "sm64ex-coop" ] || [ $(echo "$PRESET" | tr '[:upper:]' '[:lower:]') = "sm64ex-coop" ] || [ $(echo "$PRESET" | tr '[:upper:]' '[:lower:]') = "coop" ] ; then
+	GIT=djoslin0/sm64ex-coop
+	BRANCH=coop
+	NODRAWINGDISTANCE=1
+	FPS60=0
+elif [ "$PRESET" = "r96droid" ] || [ $(echo "$PRESET" | tr '[:upper:]' '[:lower:]') = "r96droid" ]; then
+	ANDROID="$PRESET"
+	PRESET="r96droid/app/jni/src"
+	GIT=vdavid003/sm64-port-android-base
+	BRANCH=sm64ex_nightly
+	TARGET_WEB=0
+	TARGET_RPI=0
+	DISCORDRPC=0
+	DYNOS=0  # might work need to test
+	CHEATER=0 # might work need to test
+	TEXTSAVES=1
+	LEGACY_RES=1
+elif [ "$PRESET" = "androidex" ] || [ $(echo "$PRESET" | tr '[:upper:]' '[:lower:]') = "androidex" ]; then
+	ANDROID="$PRESET"
+	PRESET="androidex/app/jni/src"
+	GIT=vdavid003/sm64-port-android-base
+	BRANCH=sm64ex_nightly
+	TARGET_WEB=0
+	TARGET_RPI=0
+	DISCORDRPC=0 # possibly could work untested
+	DYNOS=0  # might work need to test
+elif  [ "$PRESET" = "sm64-port-android-base" ] || [ $(echo "$PRESET" | tr '[:upper:]' '[:lower:]') = "sm64-port-android-base" ] ; then
+	ANDROID="$PRESET"
+	PRESET="sm64-port-android-base/app/jni/src"
+	GIT=vdavid003/sm64-port-android-base
+	BRANCH=master
+	EXTERNAL_DATA=0
+	TARGET_WEB=0
+	TARGET_RPI=0
+	CHEATER=0
+	DYNOS=0	
+elif  [ "$PRESET" = "mkstdos" ] || [ $(echo "$PRESET" | tr '[:upper:]' '[:lower:]') = "mkstdos" ] ; then
+	PRESET=mkstdos
+	GIT=mkst/sm64-port
+	BRANCH=dos
+	EXTERNAL_DATA=0
+	TARGET_WEB=0
+	TARGET_RPI=0
+	TARGET=dos		
+	InstallHD=0
+	CHEATER=0
+	DYNOS=0
+elif  [ "$PRESET" = "sm64dos" ] || [ $(echo "$PRESET" | tr '[:upper:]' '[:lower:]') = "sm64dos" ] ; then
+	PRESET=sm64dos
+	GIT=fgsfdsfgs/sm64-port
+	BRANCH=dos
+	EXTERNAL_DATA=0
+	TARGET_WEB=0
+	TARGET_RPI=0
+	TARGET=dos	
+	CHEATER=0
+	DYNOS=0	
+fi
+if [ "$BITS" = 32 ] || [ "$VERSION" = "jp" ] || [ "RENDER_API" = "D3D11" ]; then
+	DISCORDRPC=0
+fi
+if [ "$TARGET_WEB" = 1 ]; then 
+	TARGET=web
+elif [ ! "$TARGET" = "dos" ]; then
+	TARGET=pc
+fi
+if [ -z "$MAXJOBS" ] && [ ! `nproc` = 1 ] && ([ "$PRESET" = "sm64nx" ] || [ "$OSX_BUILD" = 1 ]); then 
+	MAXJOBS=$((`nproc` - 1))		
+else 
+	MAXJOBS=`nproc`
+fi
+if [ "$RENDER_API" = "D3D11" ]; then
+	WINDOW_API=DXGI
+	if [ ! "$MSYS" = 1 ]; then
+		redecho WARNING: Direct X is only for Microsoft Windows.
+	fi
+else
+	WINDOW_API="$SDL_API"
+fi
+if [ "$2" = "--hd" ] || [ "$3" = "--hd" ] ||[ "$4" = "--hd" ] ||[ "$5" = "--hd" ]; then
+	InstallHD=1
+fi
+if [ "$2" = "--sgi" ] || [ "$3" = "--sgi" ] ||[ "$4" = "--sgi" ] ||[ "$5" = "--sgi" ]; then
+	EXTERNAL_DATA=1
+	InstallSGI=1
+elif [ "$2" = "--SGI" ] || [ "$3" = "--SGI" ] ||[ "$4" = "--SGI" ] ||[ "$5" = "--SGI" ]; then
+	EXTERNAL_DATA=1
+	InstallSGI=1
+fi
+if [ "$2" = "--config" ] || [ "$3" = "--config" ] ||[ "$4" = "--config" ] ||[ "$5" = "--config" ]; then
+	CONFIG=1
+elif [ "$2" = "config" ] || [ "$3" = "config" ] ||[ "$4" = "config" ] ||[ "$5" = "config" ]; then
+	CONFIG=1
+fi
+if [ "$2" = "--depends" ] || [ "$3" = "--depends" ] ||[ "$4" = "--depends" ] ||[ "$5" = "--depends" ]; then
+	DEPENDS=1
+fi
+}
+
+doconfig(){
+if ! command -v whiptail &> /dev/null; then
+    editconfig
+elif (whiptail --title "Build Options" --yesno "$(cat "$SMLINUX"/smlinuxcfg.txt)" 24 80 --yes-button "Edit Options" --no-button "Proceed" --defaultno); then
+		if whiptail --title "smlinux paused until you exit editor" --msgbox "Your configuration file will open in an editor.\n\nWhen you save and exit configuration, smlinux will begin.\n(To exit pico/nano/micro editors use Control-X)\n\nFor first build, default options which include community enhancements are reccommended.\n\nIf you mess up your settings,\nrun smlinux reset to restore to latest defaults." 16 60 2>&1; then
+		editconfig	
+	else
+		echo smlinux aborted.
+		exit
+	fi
+fi
+}
+
+editconfig(){
+if [ "$NANO" = 1 ]; then
+	nano "$SMLINUX"/smlinuxcfg.txt
+elif [ -f "$SMLINUX"/config.py ] ; then
+	if [ ! "$PRESET" = "UserDefined" ]; then # clear values
+		sed -i.bak '/^BRANCH=/d' "$SMLINUX"/smlinuxcfg.txt # delete line
+		sed -i.bak '/^GIT=/d' "$SMLINUX"/smlinuxcfg.txt # delete line
+		echo "GIT=" >>"$SMLINUX"/smlinuxcfg.txt
+		echo "BRANCH=" >>"$SMLINUX"/smlinuxcfg.txt
+	fi
+	if ! python3 "$SMLINUX"/config.py "$SMLINUX"/smlinuxcfg.txt; then 
+		redecho Please run smlinux depends to install PyQt5 and numpy for GUI editor to work.
+		echo To avoid this message, use option --nano to force nano automatically.
+		EDITORS=nano:kate:epad:gedit:notepadqq:bluefish:geany:lime:medit:leafpad:pico:micro:jed:emacs:vim:vi
+		IFS=":"
+		for editor in $EDITORS; do
+			$editor "$SMLINUX"/smlinuxcfg.txt
+			if [ $? -eq 0 ]; then
+				return
+			fi
+		done
+	fi
+fi
+}
+
+loademsdk(){
+if [ ! -d "$BASEPATH"/emsdk ]; then
+	cd "$BASEPATH"
+	git clone git://github.com/emscripten-core/emsdk
+	cd emsdk
+	./emsdk install 1.39.5
+	./emsdk activate 1.39.5
+fi
+source "$BASEPATH"/emsdk/emsdk_env.sh
+}
+
+
+dodos(){
+cd "$BASEPATH"
+if [ ! -d "$BASEPATH"/djgpp/bin ]; then
+	wget https://github.com/andrewwutw/build-djgpp/releases/download/v3.0/djgpp-linux64-gcc930.tar.bz2
+	tar xjf djgpp-linux64-gcc930.tar.bz2
+	rm djgpp-linux64-gcc930.tar.bz2
+fi
+if [ ! -d "$BASEPATH"/djgpp/csdpmi ]; then
+	mkdir djgpp/csdpmi
+	wget https://sandmann.dotster.com/cwsdpmi/csdpmi7b.zip
+	unzip -j -d djgpp/csdpmi csdpmi7b.zip bin/CWSDPMI.EXE
+	rm csdpmi7b.zip
+fi
+export PATH="$BASEPATH"/djgpp/bin:$PATH
+}
+
+prepnx(){
+mkdir "$BASEPATH"/"$PRESET"/build
+mkdir "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"
+mkdir "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/romfs
+ln -s "$SMLINUX"/baserom."$VERSION".z64 "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/baserom."$VERSION".z64
+cd "$BASEPATH"/"$PRESET"/tools
+bluecho Preparing tools...
+make -j"$MAXJOBS" >/dev/null
+cd "$BASEPATH"/"$PRESET"/import
+python3 extract_assets.py
+python3 ../scripts/pak.py --source . --output "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/romfs/'!!base.pak'
+if [ ! -f "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/romfs/'!!base.pak' ]; then
+	echo 
+	redecho ERROR: Unable to extract and pak ROM.
+	endnow
+else
+	echo could now get hash for ...ummmm.... forgot... got hash so dont care anymore... 
+	echo "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/romfs/'!!base.pak' created succesfully.
+fi
+}
+
+dohd(){ 
+if [ "$PRESET" = "sm64nx" ]; then 
+	bluecho "Getting add-on pakfiles..."
+	if [ ! -d "$BASEPATH"/"$PRESET"/build ] ; then mkdir "$BASEPATH"/"$PRESET"/build
+	fi
+	if [ ! -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET" ] ; then mkdir "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"
+	fi
+	if [ ! -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/romfs ] ; then mkdir "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/romfs
+	fi
+	if [ ! -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/romfs/"~OWO Mod" ]; then
+		echo Getting oWo...
+		mkdir "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/romfs/"~OWO Mod"
+		cd "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/romfs/"~OWO Mod"
+		wget -q https://cdn.discordapp.com/attachments/730416836780490752/730420038024036362/owo.pak &
+	fi
+	if [ ! -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/romfs/"~HD Luigi" ]; then
+		echo Getting HD Luigi...
+		mkdir "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/romfs/"~HD Luigi"
+		cd "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/romfs/"~HD Luigi"
+		wget -q https://cdn.discordapp.com/attachments/730416836780490752/730425786452017222/luigi.pak &
+	fi
+	if [ ! -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/romfs/"~NES Retro" ]; then
+		echo Getting NES Retro Theme...
+		mkdir "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/romfs/"~NES Retro"
+		cd "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/romfs/"~NES Retro"
+		wget -q https://cdn.discordapp.com/attachments/730416836780490752/730431589749620736/nes.pak &
+	fi
+	if [ ! -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/romfs/"HD Mario . Bowser" ]; then
+		echo "Getting HD Mario & Bowser..."
+		mkdir "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/romfs/"HD Mario . Bowser"
+		cd "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/romfs/"HD Mario . Bowser"
+		wget -q https://cdn.discordapp.com/attachments/730416836780490752/730425308989227158/arredondo.pak &
+	fi
+	if [ ! -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/romfs/"Cleaner Aesthetics" ]; then
+		echo Getting Cleaner Aesthetics Textures...
+		mkdir "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/romfs/"Cleaner Aesthetics"
+		cd "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/romfs/"Cleaner Aesthetics"
+		wget -q https://cdn.discordapp.com/attachments/730416836780490752/730430152957362191/cleaner.pak &disown
+	fi
+	if [ "$InstallSGI" = 1 ] && [ ! -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/romfs/"Render96 Textures" ]; then
+		dosgi
+	fi
+else
+	if  [ -f "$BASEPATH"/"$PRESET"/enhancements/Old_School_HD_SGI_Base_Models_V1.3_Refresh_11* ] || [ -f "$BASEPATH"/"$PRESET"/enhancements/RENDER96_V* ]; then
+		echo "Render 96 SGI model pack found, skipping model application."
+	elif [ "$EXTERNAL_DATA" = 1 ] && ( [ "$InstallSGI" = 1 ] || [ "$PRESET" = "render96ex" ] || [ "$PRESET" = "r96alpha" ] ); then
+		dosgi
+	elif [ ! "$TARGET" = "dos" ] &&  [ ! "$GIT" = "render96/render96ex" ] ; then
+		cd "$BASEPATH"/"$PRESET" 
+		if [ ! -d actors.bak ]; then
+			cp -r actors actors.bak
+		fi
+		if [ ! -f "$BASEPATH"/"$PRESET"/enhancements/Old_School_HD_Mario_Model.zip ] && [ "$GIT" = "djoslin0/sm64ex-coop" ];  then
+			wget -q https://cdn.discordapp.com/attachments/716459185230970880/719758031990030427/Old_School_HD_Mario_Model.zip -P enhancements
+			bluecho Applying HD Mario...
+			unzip -qo enhancements/Old_School_HD_Mario_Model.zip "actors/mario/*"
+			# Mario Include - thx filip
+			if ! grep -q '#include "mario/geo_header.h"' actors/group0.h; then
+				echo updating actors/group0.h
+				sed -i.bak '/#endif/i \
+#include "mario/geo_header.h"' actors/group0.h
+    		fi
+    	elif [ ! -f "$BASEPATH"/"$PRESET"/enhancements/Old_School_HD_Mario_Model.zip ] && [ ! "$GIT" = "djoslin0/sm64ex-coop" ];  then
+			wget -q https://cdn.discordapp.com/attachments/716459185230970880/719758031990030427/Old_School_HD_Mario_Model.zip -P enhancements
+			bluecho Applying HD Mario...
+			unzip -oq enhancements/Old_School_HD_Mario_Model
+		fi
+		if [ ! -f "$BASEPATH"/"$PRESET"/enhancements/hd_bowser.rar ];  then
+			wget -q https://cdn.discordapp.com/attachments/716459185230970880/718990046442684456/hd_bowser.rar -P enhancements
+			bluecho Applying HD Bowser...
+			unrar x -o+ -idq enhancements/hd_bowser
+		fi
+		if [ ! -f "$BASEPATH"/"$PRESET"/enhancements/3d_coin_v2*.patch ] && [ "$ANDROID" = 0 ] && [ ! "$GIT" = "djoslin0/sm64ex-coop" ]; then
+			if [ "$PRESET" = "sm64pc" ]; then
+				wget -q https://cdn.discordapp.com/attachments/716459185230970880/718674249631662120/3d_coin_v2.patch -P enhancements
+			else
+				wget -q https://cdn.discordapp.com/attachments/721806706547490868/725041183700680807/3d_coin_v2_nightly.patch -P enhancements
+			fi
+			if [ -f "$BASEPATH"/"$PRESET"/enhancements/3d_coin_v2*.patch ]; then
+				bluecho Applying 3D Coin Patch...
+				git apply enhancements/3d_coin_v2*.patch
+			fi
+		fi
+	fi
+	if [ "$EXTERNAL_DATA" = 1 ]; then
+		if [ ! -d "$BASEPATH"/"$PRESET"/build ]; then 
+			mkdir "$BASEPATH"/"$PRESET"/build
+		fi
+		if [ ! -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET" ]; then 
+			mkdir "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"
+		fi
+		if [ ! -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res ]; then 
+			mkdir "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res
+		fi
+		if [ -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res/.git ]; then
+			echo Git found in external resources.  Checking for updates...  # deprecated
+			cd "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res
+			git checkout gfx
+			git pull --no-rebase &
+		elif [ -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res/gfx ] && [ "$GIT" = "render96/render96ex" ]; then
+			bluecho Starting Render 96 texture update....
+			cd "$SMLINUX"/RENDER96-HD-TEXTURE-PACK
+			git pull --no-rebase &
+		elif [ -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res/gfx ]; then
+			bluecho Staring Cleaner Aesthetics textures update...
+			cd "$SMLINUX"/Cleaner-Aesthetics
+			git pull --no-rebase &
+		fi
+		cd "$SMLINUX"
+		if [ ! -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res/gfx ] && [ ! -f "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res/gfx ]; then
+			if ([ "$GIT" = "render96/render96ex" ] || [ "$PRESET" = "r96droid" ]) && [ ! -d RENDER96-HD-TEXTURE-PACK ]; then
+				bluecho Starting Render96 Texture Download... 
+				git clone --single-branch git://github.com/pokeheadroom/RENDER96-HD-TEXTURE-PACK &disown
+				bgdl=r96 # background download in progress
+			elif [ "$GIT" = "render96/render96ex" ] || [ "$PRESET" = "r96droid" ]; then
+				bluecho Starting Render96 Textures Update...
+				cd RENDER96-HD-TEXTURE-PACK
+				git pull --no-rebase &
+				ln -s "$SMLINUX"/RENDER96-HD-TEXTURE-PACK/gfx "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res/gfx
+			elif [ ! -d "$SMLINUX"/Cleaner-Aesthetics ]; then
+				bluecho Starting Cleaner Aesthetics Texture Download...
+				git clone --single-branch git://github.com/CrashCrod/Cleaner-Aesthetics &disown
+				bgdl=ca # background download in progress
+			else
+				bluecho Starting Cleaner Aesthetic Texture Update...
+				cd Cleaner-Aesthetics
+				git pull --no-rebase &
+				ln -s "$SMLINUX"/Cleaner-Aesthetics/gfx "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res/gfx
+			fi
+		fi
+		if [ -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res/gfx/textures/skyboxes ]; then
+			rm -rf "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res/gfx/textures/skyboxes
+		fi
+		if [ ! -f "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res/hq_sounds_v5.1.zip ] && [ ! "$GIT" = "djoslin0/sm64ex-coop" ] && [ "$BITS" = 64 ]; then
+			if [ ! -f "$SMLINUX"/hq_sounds_v5.1.zip ]; then
+				bluecho Getting High Quality Sounds...
+				wget -q https://github.com/MapAnon/sm64-pc-hq-sounds/releases/download/5.1/hq_sounds_v5.1.zip -P "$SMLINUX" &
+			fi
+			ln -s "$SMLINUX"/hq_sounds_v5.1.zip "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res/hq_sounds_v5.1.zip	
+		elif [ -f "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res/hq_sounds_v5.1.zip ] && [ "$GIT" = "djoslin0/sm64ex-coop" ] && [ "$BITS" = 32 ]; then
+			echo "Removing HQ SoundPack (Not Compatible with Co-Op Beta2 or 32-bit)"
+			rm "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res/hq_sounds_v5.1.zip
+		fi
+	elif [ "$GIT" = "sm64pc/sm64ex" ] || [ "$GIT" = "render96/render96ex" ] ||[ "$GIT" = "s4Ys369/cheaterex" ] ||[ "$GIT" = "djoslin0/sm64ex-coop" ] || [ "$PRESET" = "androidex" ]; then
+		pinkecho Warning: EXTERNAL_DATA=0 so skipping add-on textures and sounds
+	elif [ "$GIT" = "sm64-port/sm64-port" ]; then
+		echo External Data not supported for sm64-port repository, skipping.
+	fi
+fi
+}
+
+dofps(){
+cd "$BASEPATH"/"$PRESET"
+if [ "$FPS60" = 1 ] && [ ! -f enhancements/60fps ] && [ -f enhancements/60fps*.patch ]; then
+	bluecho Applying 60fps patch...
+	git apply enhancements/60fps*.patch 
+	touch enhancements/60fps
+	if [ -f "$SAVEDIR"/sm64config.txt ] && [ -f "$BASEPATH"/"$PRESET"/enhancements/60fps ]; then
+		bluecho Enabling Vsync...
+		sed -i.bak 's/vsync false/vsync true/g' "$SAVEDIR"/sm64config.txt
+	fi
+elif [ "$FPS60" = 0 ] && [ -f enhancements/60fps ] && [ -f enhancements/60fps*.patch ]; then
+	bluecho Removing 60fps patch...
+	if [ "$GIT" = "render96/render96ex" ]; then
+		git apply -R enhancements/60fps*.patch --reject
+	else
+		git apply -R enhancements/60fps*.patch 
+	fi
+	rm enhancements/60fps
+	if [ -f "$SAVEDIR"/sm64config.txt ] && [ -f "$BASEPATH"/"$PRESET"/enhancements/60fps ]; then
+		echo Disabling Vsync...
+		sed -i.bak 's/vsync true/vsync valse/g' "$SAVEDIR"/sm64config.txt
+	fi
+fi
+}
+
+dosgi(){
+if  [ "$TARGET_WEB" = 1 ] || ([ "$EXTERNAL_DATA" = 0 ] && [ ! "$PRESET" = "sm64nx" ]); then
+	if(whiptail --title "SGI Model Warning" --yesno "SGI Models are unlikely to work without external data or for web Target." 10 50 --yes-button "Install Anyway" --no-button "Proceed without Models" --defaultno); then
+		pinkecho Warning: SGI Models may not build correctly on anything besides sm64ex-nightly
+		echo Proceeding anyway, but it may not be succesful.
+	else
+		return
+	fi
+fi
+	cd "$BASEPATH"/"$PRESET"
+if  [ -d build/"$VERSION"_"$TARGET"/romfs/"Render 96" ] || [ -f enhancements/RENDER96_V1* ] || [ -f enhancements/Old_School_HD_SGI_Base_Models_V1.3_Refresh_11* ] || [ -f enhancements/RENDER96_V2.0_Hotfix_HUD_Keys_Fix.zip ]; then 
+	echo Render 96 Models already installed.
+	return
+fi
+if [ -f "$BASEPATH"/"$PRESET"/enhancements/3d_coin*.patch ] && [ ! "$GIT" = "s4Ys369/cheaterex" ]; then
+	bluecho Removing 3D coins...
+	git apply -R enhancements/3d_coin*.patch
+	rm enhancements/3d_coin*.patch
+fi
+if [ "$PRESET" = "sm64nx" ]; then
+	bluecho Starting Render96 Texture Pak Download...
+	mkdir "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/romfs/"Render96 Textures"
+	cd "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/romfs/"Render96 Textures"
+	wget -https://sm64pc.info/downloads/texture_pack/render96_hd.pak &disown
+	cd "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/romfs/
+	if [ -d "Cleaner Aesthetics" ]; then
+		mv "Cleaner Aesthetics" "~Cleaner Aesthetics"
+	fi
+	if [ -d "HD Mario . Bowser" ]; then
+		mv "HD Mario . Bowser" "~HD Mario . Bowser"
+	fi
+	if [ -d "~SGI Models" ]; then
+		mv "~SGI Models" "SGI Models"
+	fi
+	if [ ! -d "SGI Models" ]; then
+		bluecho Downloading Render 96 SGI Model Pack V1.3nx...
+		mkdir "SGI Models"
+		cd "SGI Models"
+		wget -q https://sm64pc.info/downloads/sgi13_fixed.pak &
+	fi
+elif [ "$PRESET" = "r96alpha" ] || [ "$PRESET" = "r96proto" ]; then
+	cd "$BASEPATH"/"$PRESET"/enhancements
+	bluecho Downloading Render 96 SGI Model Pack V2.0
+	wget -q https://sm64pc.info/downloads/conversion_pack/RENDER96_V2.0_Hotfix_HUD_Keys_Fix.zip
+	SGIFILE=RENDER96_V2.0_Hotfix_HUD_Keys_Fix.zip
+elif [ "$GIT" = "render96/render96ex" ] || [ "$PRESET" = "r96droid" ]; then
+	cd "$BASEPATH"/"$PRESET"/enhancements
+	bluecho Downloading Render 96 SGI Model Pack V1.4.2
+	wget -q https://cdn.discordapp.com/attachments/727722992137666573/768506877436755988/RENDER96_V1.4.2_Luigi.zip
+	SGIFILE=RENDER96_V1.4.2_Luigi.zip
+elif [ "$GIT" = "djoslin0/sm64ex-coop" ]; then
+	cd "$BASEPATH"/"$PRESET"/enhancements
+	wget https://sm64pc.info/downloads/model_pack/render96_coop.zip
+	SGIFILE=render96_coop.zip
+elif [ "$GIT" = "s4Ys369/cheaterex" ]; then
+	if [ -f "$BASEPATH"/"$PRESET"/enhancements/captain_toad_stars*.patch ]; then
+		cd "$BASEPATH"/"$PRESET"
+		git apply -R enhancements/captain_toad_stars*.patch
+	fi
+	cd "$BASEPATH"/"$PRESET"/enhancements
+	bluecho Downloading Render 96 SGI Model Pack V1.3
+	wget -q https://cdn.discordapp.com/attachments/727722992137666573/745038574918828112/RENDER96_V1.3.7z
+	mv RENDER96_V1.3.7z RENDER96_V1.3.zip
+	SGIFILE=RENDER96_V1.3.zip
+else
+	cd "$BASEPATH"/"$PRESET"/enhancements
+	bluecho Downloading Render 96 SGI Model Pack V1.3
+	wget -q https://cdn.discordapp.com/attachments/727722992137666573/745038574918828112/RENDER96_V1.3.7z
+	mv RENDER96_V1.3.7z RENDER96_V1.3.zip
+	SGIFILE=RENDER96_V1.3.zip
+fi
+if [ -d "$BASEPATH"/"$PRESET"/actors.bak ] && [ ! "$SGIFILE" = "render96_coop.zip" ]; then
+	echo Restoring default actors...
+	cd "$BASEPATH"/"$PRESET"/enhancements
+	rm -rf "$BASEPATH"/"$PRESET"/actors
+	mv "$BASEPATH"/"$PRESET"/actors.bak "$BASEPATH"/"$PRESET"/actors
+	rm hd_bowser.rar Old_School_HD_Mario_Model.zip
+elif [ -d "$BASEPATH"/"$PRESET"/actors.bak ] && [ "$SGIFILE" = "render96_coop.zip" ]; then
+	echo Restoring default actors and keeping backup...
+	cd "$BASEPATH"/"$PRESET"/enhancements
+	rm -rf "$BASEPATH"/"$PRESET"/actors
+	cp -r "$BASEPATH"/"$PRESET"/actors.bak "$BASEPATH"/"$PRESET"/actors
+	rm hd_bowser.rar
+elif [ "$SGIFILE" = "render96_coop.zip" ]; then
+	echo Saving original actors folder as actors.bak 	
+	cd "$BASEPATH"/"$PRESET"
+	cp -rn actors actors.bak
+fi
+if [ ! "$PRESET" = "sm64nx" ]; then
+	removecheater
+	cd "$BASEPATH"/"$PRESET"
+	bluecho Applying Render96 SGI Models...
+	7z x -aoa enhancements/"$SGIFILE" >/dev/null
+fi
+if [ ! "$ANDROID" = 0 ] && [ -f "$BASEPATH"/"$PRESET"/enhancements/render96_android.patch ]; then
+	echo Applying Android patch for Render96 models
+	git apply enhancements/render96_android.patch
+fi
+}
+	
+scriptUpdate(){
+if [ ! -f ~/.smlinuxUpdate ]; then 
+	if [ ! -f "$PATHDIR"/smlinux ] || [ ! -d "$SMLINUX"/.git ] ; then
+		bluecho Installing smlinux into "$PATHDIR"... 	
+		if [ "$USER" = "root" ]; then
+			redecho WARNING: smlinux being installed as root.
+			pinkecho smlinux updates may not work correctly if you run again as a regular user.
+		fi
+		if [ -d "$SMLINUX" ]; then
+			if [ -d "$SMLINUX".baq ]; then
+				rm -rf "$SMLINUX".baq
+			fi
+			mv -f "$SMLINUX" "$SMLINUX".baq
+		fi
+		git clone --single-branch git://github.com/enigma9o7/smlinux.git "$SMLINUX"
+		if [ -d "$SMLINUX".baq ]; then
+			cp -rn "$SMLINUX".baq/* "$SMLINUX"/
+			rm -rf "$SMLINUX".baq
+		fi
+		if [ ! -d "$SMLINUX"/.git ] ; then
+			redecho ERROR: Cannot connect to github. Run without AutoUpdate enabled.  
+			echo smlinux exiting incomplete.
+			exit
+		fi
+		if [ -d "$PATHDIR" ]; then
+			mv -f "$SMLINUX"/smlinux "$PATHDIR"/
+		elif mkdir "$PATHDIR"; then
+			mv -f "$SMLINUX"/smlinux "$PATHDIR"/
+		fi
+		touch $HOME/.smlinuxUpdate
+		if [ ! -f "$PATHDIR"/smlinux ]; then
+			pinkecho Warning: Could not write to first path directory.  Creating $HOME/bin.
+			touch "$HOME"/.smlinuxNopath
+			mkdir $HOME/bin
+			bluecho Adding $HOME/bin to bash path...
+			echo 'export PATH=$HOME/bin:$PATH' >>~/.bashrc
+			export PATH=$HOME/bin:$PATH
+			PATHDIR=$HOME/bin
+			mv -f "$SMLINUX"/smlinux "$PATHDIR"/
+			if [ ! -f "$PATHDIR"/smlinux ]; then
+				redecho ERROR - Could not add to path.  Run without AutoUpdate enabled.
+				echo smlinux exiting incomplete.
+				exit
+			fi
+		else
+			bluecho smlinux succesfully added to path - enter smlinux to run anytime
+		fi
+		chmod +x "$PATHDIR"/smlinux
+		cd "$LAUNCH_DIR"
+		exec smlinux "$COMMAND" "$OP1" "$OP2" "$OP3" "$OP4"
+	else
+		cd "$SMLINUX"
+		git fetch
+		if [ "$(git diff HEAD origin/HEAD -- smlinux)" != "" ]; then
+			git merge
+			if [ ! -f "$SMLINUX"/smlinux ]; then
+				pinkecho "Warning: smlinux repository updated but new script not found"
+				echo This could be normal if only the readme, icons, or config editor updated.
+			else
+				echo 'if [ `uname` = "Darwin" ]; then	
+					PATHDIR=/usr/local/bin
+				elif mapfile -t -d: <<<"$PATH" >/dev/null 2>&1; then
+					PATHDIR="${MAPFILE[0]}"
+				else
+					PATHDIR="$HOME"/bin
+				fi
+				SMLINUX=${XDG_DATA_HOME:-$HOME/.local/share}/smlinux
+				mv -f "$SMLINUX"/smlinux "$PATHDIR"/
+				if [ ! -f "$PATHDIR"/smlinux ]; then
+					echo Warning: Could not write to first path directory.  Creating $HOME/bin.
+					touch "$HOME"/.smlinuxNopath
+					mkdir $HOME/bin
+					PATHDIR="$HOME"/bin
+					mv -f "$SMLINUX"/smlinux "$PATHDIR"/
+					if [ ! -f "$PATHDIR"/smlinux ]; then
+						echo ERROR - Could not write "$PATHDIR"/smlinux 
+						echo Run again with AutoUpdate disabled.
+						exit
+					fi
+				fi
+				chmod +x "$PATHDIR"/smlinux
+				exec smlinux "$@"' > ~/.smlinuxUpdate
+				chmod +x ~/.smlinuxUpdate
+				cd "$LAUNCH_DIR"
+				exec ~/.smlinuxUpdate "$COMMAND" "$OP1" "$OP2" "$OP3" "$OP4"
+			fi
+		elif [ "$COMMAND" = "upgrade" ]; then    
+			echo smlinux is up to date.
+			exit
+		else    
+			echo smlinux is up to date.
+		fi
+	fi
+fi
+}
+
+dodynos(){
+# must be called after docheats to handle combined patch
+cd "$BASEPATH"/"$PRESET"
+if [ "$GIT" = "s4Ys369/cheaterex" ]; then
+	return
+elif [ "$DYNOS" = 0 ] && [ -f enhancements/DynOS.0.*.patch ]; then
+	bluecho Removing Dynamic Option System...
+	git apply -R enhancements/DynOS*.patch
+	rm enhancements/DynOS*
+elif [ "$DYNOS" = 1 ] && !( [ -f enhancements/DynOS.0.5.* ] || [ -f enhancements/dynos.patch ]); then
+	if [ -f enhancements/DynOS.0.*.patch ]; then
+		bluecho Updating Dynamic Option System...
+		git apply -R enhancements/DynOS*.patch
+		rm enhancements/DynOS*
+	else
+    	bluecho Applying Dynamic Option System...
+    fi
+    if [ -f "$SAVEDIR"/DynOSconfig.cfg ]; then
+		rm "$SAVEDIR"/DynOSconfig.cfg
+	fi
+    cd enhancements
+    unzip -q "$SMLINUX"/DynOS*.zip
+    cd ..
+    git apply enhancements/DynOS*.patch
+fi
+}
+
+docheats(){
+cd "$BASEPATH"/"$PRESET"
+if [ "$GIT" = "s4Ys369/cheaterex" ]; then
+	return
+elif [ "$CHEATER" = 0 ]; then
+	removecheater
+	return
+elif [ "$ANDROID" = "androidex" ] && [ ! -f enhancements/CHEATERv9.zip ]; then
+	removecheater
+	cd enhancements
+	wget -q https://cdn.discordapp.com/attachments/716459185230970880/762071729069359114/CHEATERv9.zip
+	unzip -q CHEATERv9.zip v9_r96ex.patch
+	CHEATERFILE=v9_r96ex.patch 
+elif [ "$GIT" = "djoslin0/sm64ex-coop" ] && [ ! -f enhancements/CHEATER.coop.v3.patch.zip ]; then
+	removecheater
+	cd enhancements
+	wget -q https://cdn.discordapp.com/attachments/755907254318006362/770448804512137236/CHEATER.coop.v3.patch.zip
+	unzip -q CHEATER.coop.v3.patch.zip 
+	CHEATERFILE=CHEATER.coop.v3.patch
+elif [ "$PRESET" = "r96alpha" ] && [ ! -f enhancements/CHEATERv11.alpha.zip ]; then
+	removecheater
+	cd enhancements
+	wget -q https://cdn.discordapp.com/attachments/716459185230970880/773916280247549952/CHEATERv11.alpha.zip
+	unzip -jq CHEATERv11.alpha.zip CHEATERv11.alpha/CHEATERv11.alpha_dynos.patch
+	unzip -joq CHEATERv11.alpha.zip CHEATERv11.alpha/sound/samples/streamed_audio/23_custom_zawar.aiff -d ../sound/samples/streamed_audio
+	unzip -joq CHEATERv11.alpha.zip CHEATERv11.alpha/sound/sequences/us/23_custom_zawar.m64 -d ../sound/sequences/us
+	touch DynOS.0.5.cheater
+	if [ -f "$SAVEDIR"/DynOSconfig.cfg ]; then
+		rm "$SAVEDIR"/DynOSconfig.cfg
+	fi
+	CHEATERFILE=CHEATERv11.alpha_dynos.patch
+elif [ "$PRESET" = "sm64ex" ] && [ ! -f enhancements/CHEATERv11.ex.zip ]; then
+	removecheater
+	cd enhancements
+	wget -q https://cdn.discordapp.com/attachments/716459185230970880/773268203895783444/CHEATERv11.ex.zip
+	unzip -q CHEATERv11.ex.zip CHEATERv11.ex_dynos.patch
+	if [ -f DynOS.0.*.patch ]; then
+		cd ..
+		git apply -R enhancements/DynOS*.patch
+		cd enhancements
+		rm DynOS*
+	fi
+	if [ -f "$SAVEDIR"/DynOSconfig.cfg ]; then
+		rm "$SAVEDIR"/DynOSconfig.cfg
+	fi
+	CHEATERFILE=CHEATERv11.ex_dynos.patch 
+elif ([ "$GIT" = "sm64pc/sm64ex" ]  || [ "$GIT" = "render96/render96ex" ]) &&  [ ! -f enhancements/CHEATERv10*.zip ] && [ ! "$PRESET" = "sm64ex" ] && [ ! "$PRESET" = "r96alpha" ]; then
+	removecheater
+	cd "$BASEPATH"/"$PRESET"/enhancements
+	wget -q https://cdn.discordapp.com/attachments/716459185230970880/767558856385495090/CHEATERv10.zip
+	if [ "$DYNOS" = 1 ]; then
+		dodynos
+		cd "$BASEPATH"/"$PRESET"/enhancements
+		unzip -q CHEATERv10.zip CHEATERv10_dynos.patch 
+		CHEATERFILE=CHEATERv10_dynos.patch
+	else
+		unzip -q CHEATERv10.zip CHEATERv10.patch 
+		CHEATERFILE=CHEATERv10.patch
+	fi
+fi
+if [ -f "$CHEATERFILE" ]; then
+	bluecho Applying "$CHEATERFILE"...
+	cd "$BASEPATH"/"$PRESET"
+	git apply enhancements/"$CHEATERFILE" --reject 
+fi
+}
+
+removecheater(){
+cd "$BASEPATH"/"$PRESET"
+if [ "$GIT" = "s4Ys369/cheaterex" ]; then
+	return
+elif [ -f enhancements/CHEATER*.patch ]; then
+	bluecho Removing CHEATER...
+	git apply -R enhancements/CHEATER*.patch
+	rm enhancements/CHEATER*
+elif [ -f enhancements/cheater*.patch ]; then
+	bluecho Removing CHEATER...
+	git apply -R enhancements/cheater*.patch
+	rm enhancements/cheater*
+elif [ -f enhancements/v9_*.patch ]; then
+	bluecho Removing CHEATER v9...
+	git apply -R enhancements/v9_*.patch
+	rm enhancements/v9_*.patch
+elif [ -f enhancements/fix.CHEATER*.patch ]; then
+	bluecho Removing CHEATER...
+	git apply -R enhancements/fix.CHEATER*.patch
+	rm enhancements/fix.CHEATER*
+fi
+if [ -f enhancements/CHEATER*.zip ]; then
+	rm enhancements/CHEATER*.zip
+fi
+if [ -f enhancements/fix.CHEATER*.zip ]; then
+	rm enhancements/fix.CHEATER*.zip
+fi
+if [ -f enhancements/DynOS.0.5.cheater ]; then
+	rm enhancements/DynOS.0.5.cheater
+fi
+}
+
+makedesktop(){
+if [ ! -d "$SHARE"/icons ]; then 
+	mkdir "$SHARE"/icons
+fi
+if [ ! -d "$SHARE"/applications ]; then 
+	mkdir "$SHARE"/applications
+fi
+if [ ! -f "$SHARE"/icons/"$PRESET".* ]; then
+	bluecho Preparing Icon...
+	if [ "$MSYS" = 1 ]; then
+		unzip -q "$SMLINUX"/icons "$PRESET".ico -d "$SHARE"/icons
+	else
+		unzip -q "$SMLINUX"/icons "$PRESET".png -d "$SHARE"/icons
+	fi
+	if [ ! -f "$SHARE"/icons/"$PRESET".* ] && [ -f "$BASEPATH"/"$PRESET"/textures/segment2/segment2.05A00.rgba16.png ]; then
+		cp "$BASEPATH"/"$PRESET"/textures/segment2/segment2.05A00.rgba16.png "$SHARE"/icons/"$PRESET".png
+		pinkecho Warning: 16x16 image from ROM used for "$SHARE"/icons/"$PRESET".png
+	elif [ ! -f "$SHARE"/icons/"$PRESET".* ]; then
+		pinkecho Warning: No icon found. Please create "$SHARE"/icons/"$PRESET".png
+	fi	
+else
+	printf "Icon already exists. "
+fi
+if [ "$MSYS" = 1 ]; then
+	SHORTY="$USERPROFILE"'/Desktop/Super Mario 64 ('"$PRESET"')'.url
+	if [ ! -f "$SHORTY" ]; then
+		bluecho Creating Windows desktop shorcut... 
+		echo [InternetShortcut]>"$SHORTY"
+		# echo URL="file:///"`cygpath -w "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64."$VERSION".f3dex2e` --cheats --savepath `cygpath -w "$SAVEDIR"`>>"$SHORTY"
+		echo URL="file:///"`cygpath -w "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64."$VERSION".f3dex2e` >>"$SHORTY"
+		echo IconFile=`cygpath -w "$SHARE"/icons/"$PRESET".ico`>>"$SHORTY"
+		echo IconIndex=0>>"$SHORTY"
+	else
+		echo Windows Desktop shortcut already exists.
+	fi
+elif [ ! -f "$SHARE"/applications/"$PRESET".desktop ] && [ ! "$OSX_BUILD" = 1 ]; then
+	bluecho Creating desktop shorcut and menu entry...
+	echo '[Desktop Entry]
+Encoding=UTF-8
+Type=Application
+StartupNotify=false
+Categories=Game;'>"$SHARE"/applications/"$PRESET".desktop
+echo Icon="$SHARE"/icons/"$PRESET".png >>"$SHARE"/applications/"$PRESET".desktop
+echo Name=Super Mario 64 \("$PRESET"\) >>"$SHARE"/applications/"$PRESET".desktop
+	if [ "$PRESET" = "sm64ex-coop" ]; then
+		echo Path="$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET" >>"$SHARE"/applications/"$PRESET".desktop
+		echo Exec=\""$BASEPATH"\"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64."$VERSION".f3dex2e --cheats --skip-intro >>"$SHARE"/applications/"$PRESET".desktop
+	elif [ "$PRESET" = "sm64-port" ]; then
+		echo Path="$SAVEDIR" >>"$SHARE"/applications/"$PRESET".desktop
+		printf "Exec=sh -c \"" >>"$SHARE"/applications/"$PRESET".desktop
+		echo \""$BASEPATH"\"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64."$VERSION".f3dex2e';echo'\" >>"$SHARE"/applications/"$PRESET".desktop
+	elif [ "$PRESET" = "sm64nx" ]; then
+		echo Path="$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET" >>"$SHARE"/applications/"$PRESET".desktop
+		echo Exec=\""$BASEPATH"\"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64."$VERSION".f3dex2e>>"$SHARE"/applications/"$PRESET".desktop
+	else # assume ex 
+		echo Path="$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET" >>"$SHARE"/applications/"$PRESET".desktop
+		echo Exec=\""$BASEPATH"\"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64."$VERSION".f3dex2e --cheats --savepath "$SAVEDIR" >>"$SHARE"/applications/"$PRESET".desktop
+	fi
+	if [ -d ${XDG_DESKTOP_DIR:-$HOME/Desktop} ]; then
+		cp "$SHARE"/applications/"$PRESET".desktop ${XDG_DESKTOP_DIR:-$HOME/Desktop}
+	fi
+	if [ "$USER" = "root" ] && [ -d /usr/share/applications ]; then
+		mv -f "$SHARE"/applications/"$PRESET".desktop /usr/share/applications
+	fi
+elif [ "$OSX_BUILD" = 1 ]; then
+	bluecho Creating macOS App Bundle and Desktop Shortcut...
+ 	if [ -f /Applications/'Super Mario 64 ('"$PRESET"')'.app ]; then
+ 		rm -rf /Applications/'Super Mario 64 ('"$PRESET"')'.app 
+	fi
+	cd "$BASEPATH"/"$PRESET"
+	GITVER=`git rev-parse --short HEAD`
+	echo '#!/bin/bash' >"$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64.sh
+	echo cd "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET" >>"$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64.sh
+	if [ "$GIT" = "teamsalta/sm64nx" ]; then
+		echo "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64."$VERSION".f3dex2e >>"$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64.sh
+	else
+		echo "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64."$VERSION".f3dex2e --cheats --savepath "$SAVEDIR" >>"$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64.sh
+	fi
+	chmod +x "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64.sh
+	cd /Applications
+	~/go/bin/appify -name 'Super Mario 64 ('"$PRESET"')' -icon "$SHARE"/icons/"$PRESET".png -author smlinux --version "$GITVER" --id "$GIT"-"$BRANCH" "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64.sh
+	if [ ! -d $HOME/Desktop/'Super Mario 64 ('"$PRESET"')'.app ]; then
+		cd $HOME/Desktop
+		ln -s /Applications/'Super Mario 64 ('"$PRESET"')'.app
+	fi
+else
+	echo Menu entry desktop file already exists.
+fi
+}
+rungame(){
+if [ "$bgdl" = "r96" ] && [ -d "$SMLINUX"/RENDER96-HD-TEXTURE-PACK/gfx/textures ]; then
+	ln -s "$SMLINUX"/RENDER96-HD-TEXTURE-PACK/gfx "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res/gfx
+elif [ "$bgdl" = "r96" ] && [ ! -d "$SMLINUX"/RENDER96-HD-TEXTURE-PACK/gfx/textures ]; then
+	bluecho Waiting for Render 96 texture pack to finish downloading...
+	while [ ! -d "$SMLINUX"/RENDER96-HD-TEXTURE-PACK/gfx/textures ] # dont put a semicolon here
+do
+	sleep 1
+done
+	ln -s "$SMLINUX"/RENDER96-HD-TEXTURE-PACK/gfx "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res/gfx
+elif [ "$bgdl" = "ca" ] && [ -d "$SMLINUX"/Cleaner-Aesthetics/gfx/textures ]; then
+	ln -s "$SMLINUX"/Cleaner-Aesthetics/gfx "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res/gfx
+elif [ "$bgdl" = "ca" ] && [ ! -d "$SMLINUX"/Cleaner-Aesthetics/gfx/textures ]; then
+	bluecho Waiting for Cleaner Aesthetics texture pack to finish downloading...
+	while [ ! -d "$SMLINUX"/Cleaner-Aesthetics/gfx/textures ] # dont put a semicolon here
+do
+	sleep 1
+done
+	ln -s "$SMLINUX"/Cleaner-Aesthetics/gfx "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res/gfx
+fi
+if [ "$TARGET_WEB"  = 1 ]; then 
+	cd "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"
+	ln -s sm64.us.f3dex2e.html index.html
+	bluecho Starting python webserver and launching web browser...
+	python3 -m http.server 8100 &
+	if [ -f /usr/bin/firefox ]; then
+		firefox --new-window http://localhost:8100&disown
+	else
+		"$OPEN" http://localhost:8100&disown
+	fi
+elif [ ! "$ANDROID" = 0 ] ; then
+	if [ "$GOTPHONE" = 1 ]; then
+		bluecho Testing application launch...
+		adb shell am start -n com.vdavid003.sm64port/.sm64portActivity
+		if [ "$EXTERNAL_DATA" = 1 ]; then
+			echo 
+			echo When SM64 is launched screen will appear blank while external assets are loaded.
+			echo Just wait...
+		fi
+	elif [ "$EXTERNAL_DATA" = 1 ]; then
+		zenity --info --text="Your Android device was not detected so app could not be installed.\nYou must put base assets (base.zip or hdbase.zip) into\nInternal Storage/Android/data/com.vdavid003.sm64port/files\nThis folder will be created when you launch the apk." --title="Transfer External Resources!" --width=470
+		echo
+		echo "Your Android device was not detected so app could not be installed."
+		echo "You must put base assets (base.zip or hdbase.zip) into"
+		echo "Internal Storage/Android/data/com.vdavid003.sm64port/files"
+		echo 
+	fi
+	"$OPEN" "$BASEPATH"/"$ANDROID"/app/build/outputs/apk/debug &disown
+elif [ "$GIT"  = "djoslin0/sm64ex-coop" ] && [ ! `nproc` = 1 ]; then
+	bluecho Testing Double Application Launch...
+	cd "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"
+	./sm64.us.f3dex2e --server 7777 --cheats --savepath "$SAVEDIR" --skip-intro &
+	sleep 10
+	./sm64.us.f3dex2e --client 127.0.0.1 7777 --cheats --savepath ! --skip-intro &
+elif [ "$TARGET" = "dos" ] &&  command -v dosbox-x &> /dev/null; then
+	bluecho Testing launch with dosbox-x...
+	dosbox-x "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64.exe &disown
+elif [ "$TARGET" = "dos" ] &&  command -v dosbox &> /dev/null; then
+	bluecho Testing launch with dosbox...
+	dosbox "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64.exe &disown
+elif [ "$TARGET" = "dos" ]; then
+	echo Cannot test DOS Version fom Linux!  Try Dosbox or FreeDOS in VirtualBox.
+	"$OPEN" "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"
+elif [ "$OSX_BUILD" = 1 ]; then
+	bluecho Testing App Bundle Shortcut launch...
+	/Applications/'Super Mario 64 ('"$PRESET"')'.app/Contents/MacOS/'Super Mario 64 ('"$PRESET"')'.app &
+elif command -v gtk-launch &> /dev/null; then
+	bluecho Testing application launch...
+	gtk-launch "$PRESET" &disown
+elif [ -f "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64.us.f3dex2e ]; then
+	bluecho Testing execution...
+	cd "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"
+	./sm64.us.f3dex2e --cheats --savepath "$SAVEDIR" --skip-intro &disown
+fi
+}
+
+####################################### The Beginning ########################################
+
+SHARE=${XDG_DATA_HOME:-$HOME/.local/share}
+SMLINUX="$SHARE"/smlinux
+LAUNCH_DIR=$(pwd)
+
+if [ `uname` = "Darwin" ]; then
+	PATHDIR=/usr/local/bin
+	OPEN=open
+	OSX_BUILD=1
+elif command -v xdg-open &> /dev/null; then
+	if mapfile -t -d: <<<"$PATH" >/dev/null 2>&1; then
+		PATHDIR="${MAPFILE[0]}"
+	else
+		PATHDIR="$HOME"/bin
+		export PATH="$HOME"/bin:$PATH
+	fi
+	OPEN=xdg-open
+elif [ `uname -o` = "Msys" ]; then
+    MSYS=1
+	mapfile -t -d: <<<"$PATH"
+	PATHDIR="${MAPFILE[0]}"
+	OPEN=start
+elif command -v firefox &> /dev/null; then
+	mapfile -t -d: <<<"$PATH"
+	PATHDIR="${MAPFILE[0]}"
+	OPEN=firefox
+elif mapfile -t -d: <<<"$PATH"; then
+	PATHDIR="${MAPFILE[0]}"
+	OPEN=echo
+else
+	PATHDIR="$HOME"/bin
+	export PATH="$HOME"/bin:$PATH
+	OPEN=echo
+fi
+if [ `uname -m` = "x86_64" ]; then
+	BITS=64
+else
+	BITS=32
+fi
+
+if [ -z "$1" ] && [ ! -d "$SMLINUX"/.git ]; then
+	COMMAND=build
+elif [ "$1" = "-help" ] || [ "$1" = "--help" ] || [ "$1" = "-h" ] || [ "$1" = "/?" ]; then
+	COMMAND=help
+elif [ ! $# -eq 0 ]; then
+	COMMAND="$1"
+	OP1="$2"
+	OP2="$3"
+	OP3="$4"
+	OP4="$5"
+elif command -v whiptail &> /dev/null; then
+	export NEWT_COLORS='
+	roottext=magenta,black     # title on top
+	root=,black                # background
+	window=,black              # window background
+	border=brightblue,black
+	textbox=magenta,black      # after spacebar
+	title=blue,black           # make choice with arrows
+	checkbox=brightcyan,black  # important list
+	compactbutton=blue,black   # ok button'
+	if ! COMMAND=$(whiptail --title "Make Choice with Arrows and [Space Bar]" --nocancel --radiolist "        After spacebar press [Enter] to proceed." 14 60 7 \
+	 --backtitle "     Super Mario 64 Install * Build * Update Script for Linux and macOS" \
+	"build" "get clean sm64 source and build it" ON \
+	"update" "update sm64 source and rebuild it" OFF \
+	"clone" "get clean sm64 source and extract rom" OFF \
+	"reset" "reset smlinux config file to default" OFF \
+	"config" "edit smlinux config file only" OFF \
+	"depends" "install dependencies only" OFF \
+	"upgrade" "upgrade smlinux only" OFF \
+	3>&1 1>&2 2>&3); then
+		# echo User escape.
+		COMMAND=help
+		OP1="--noweb"
+	fi
+else
+	redecho Error: whiptail is not installed so command menu cannot be displayed.
+	greenecho You must specify a command, for example smlinux help or smlinux build.
+	exit
+fi
+if [ "$2" = "--nano" ] || [ "$3" = "--nano" ] ||[ "$4" = "--nano" ] ||[ "$5" = "--nano" ]; then
+	NANO=1
+elif [ "$2" = "nano" ] || [ "$2" = "-nano" ] ||[ "$3" = "nano" ] ||[ "$3" = "-nano" ]; then
+	NANO=1
+fi
+
+export NEWT_COLORS='
+roottext=magenta,black     # title on top
+root=,black                # background
+window=,black              # window background
+border=magenta,black        
+textbox=brightcyan,black   # editor text
+title=blue,black           # make choice with arrows
+checkbox=brightcyan,black  # important list
+compactbutton=blue,black   # ok button'
+# Make sure folders and installer config file exist, if not create them.
+if [ ! -d $HOME/.local ]; then 
+	mkdir $HOME/.local
+fi
+if [ ! -d "$SHARE" ]; then 
+	mkdir "$SHARE"
+fi
+if [ ! -f "$SMLINUX"/smlinuxcfg.txt ] && [ -f "$SHARE"/sm64pc/smlinuxcfg.txt ]; then
+	# update paths from old versions of smlinux that shared sm64pc folder for configfile
+	pathupdate
+fi
+if [ -f "$SMLINUX"/smlinuxcfg.txt ]; then #update users config file fields 
+	sed -i.bak 's/WINDOW_API=/SDL_API=/g' "$SMLINUX"/smlinuxcfg.txt # rename field
+	sed -i.bak 's/InstallR96=/InstallSGI=/g' "$SMLINUX"/smlinuxcfg.txt # rename field
+	sed -i.bak '/^REPO=/d' "$SMLINUX"/smlinuxcfg.txt # delete field
+	sed -i.bak '/^OSX_BUILD=/d' "$SMLINUX"/smlinuxcfg.txt # delete field
+	sed -i.bak '/^UpdateHD=/d' "$SMLINUX"/smlinuxcfg.txt # delete field
+	sed -i.bak '/UpdateHD=/d' "$SMLINUX"/smlinuxcfg.txt # delete comment
+	sed -i.bak '/^Linux=/d' "$SMLINUX"/smlinuxcfg.txt # delete field
+	sed -i.bak '/Linux must be set/d' "$SMLINUX"/smlinuxcfg.txt # delete comment
+	sed -i.bak '/Depracated/d' "$SMLINUX"/smlinuxcfg.txt # delete comment
+	if ! grep -q "FLAGS=" "$SMLINUX"/smlinuxcfg.txt; then
+		echo "FLAGS=" >>"$SMLINUX"/smlinuxcfg.txt
+	fi
+	rm "$SMLINUX"/smlinuxcfg.txt.bak
+fi
+if [ ! -f ~/.smlinuxUpdate ]; then
+	if [ "$COMMAND" = "config" ]; then
+		editconfig
+		exit
+	elif [ "$COMMAND" = "reset" ]; then
+		rm "$SMLINUX"/smlinuxcfg.txt
+		makeconfig
+		echo
+		echo smlinux configuration file has been reset to default.
+		echo
+		exit
+	fi
+	bluecho Loading "$SMLINUX"/smlinuxcfg.txt...
+	loadconfig "$COMMAND" "$2" "$3" "$4" "$5" "$6"
+	#Play a sound clip for no reason - thank you for playing my game.
+	if [ -f /usr/bin/mplayer ] || [ -f /bin/mplayer ]; then
+		if [ -f "$BASEPATH"/sm64pc/sound/samples/sfx_mario_peach/0D.aiff ]; then
+			mplayer -nolirc -really-quiet "$BASEPATH"/sm64pc/sound/samples/sfx_mario_peach/0D.aiff&
+		elif [ -f "$BASEPATH"/sm64ex/sound/samples/sfx_mario_peach/0D.aiff ]; then
+			mplayer -nolirc -really-quiet "$BASEPATH"/sm64ex/sound/samples/sfx_mario_peach/0D.aiff&
+		elif [ -f "$BASEPATH"/render96ex/sound/samples/sfx_mario_peach/0D.aiff ]; then
+			mplayer -nolirc -really-quiet "$BASEPATH"/render96ex/sound/samples/sfx_mario_peach/0D.aiff&
+		elif [ -f "$BASEPATH"/sm64-port/sound/samples/sfx_mario_peach/0D.aiff ]; then
+			mplayer -nolirc -really-quiet "$BASEPATH"/sm64-port/sound/samples/sfx_mario_peach/0D.aiff&
+		fi
+	fi
+else
+	loadconfig "$COMMAND" "$2" "$3" "$4" "$5" "$6"
+fi
+SAVEDIR="$SHARE"/"$PRESET"
+if  [ "$COMMAND" = "reset" ] || [ "$COMMAND" = "config" ] || [ "$COMMAND" = "purge" ] || [ "$COMMAND" = "upgrade" ]; then
+	echo smlinux:"$COMMAND" "$2" "$3" "$4" "$5" "$6"
+elif [ ! "$COMMAND" = "help" ]; then
+	echo smlinux:"$COMMAND" "$GIT"-"$BRANCH" "$PRESET" "$2" "$3" "$4" "$5" "$6"
+fi
+if [ -f "$BASEPATH"/sm64nx/build/"$VERSION"_"$TARGET"/conf.bin ] && [ ! -f "$SHARE"/sm64nx/conf.bin ]; then
+	mv "$BASEPATH"/sm64nx/build/"$VERSION"_"$TARGET"/conf.bin "$SHARE"/sm64nx/
+	ln -s "$SAVEDIR"/conf.bin "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/conf.bin 
+fi
+if [ -f "$BASEPATH"/sm64nx/build/"$VERSION"_"$TARGET"/sm64.sav ] && [ ! -f "$SHARE"/sm64nx/sm64.sav ]; then
+	mv "$BASEPATH"/sm64nx/build/"$VERSION"_"$TARGET"/sm64.sav "$SHARE"/sm64nx/
+	ln -s "$SAVEDIR"/sm64.sav "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64.sav 
+fi
+if [ -f "$BASEPATH"/sm64nx/build/"$VERSION"_"$TARGET"/gamepad1.bindings.json ] && [ ! -f "$SHARE"/sm64nx/gamepad1.bindings.json ]; then
+	mv "$BASEPATH"/sm64nx/build/"$VERSION"_"$TARGET"/gamepad1.bindings.json "$SHARE"/sm64nx/
+	ln -s "$SAVEDIR"/gamepad1.bindings.json "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/gamepad1.bindings.json
+fi
+if [ -f "$BASEPATH"/sm64nx/build/"$VERSION"_"$TARGET"/keyboard1.bindings.json ] && [ ! -f "$SHARE"/sm64nx/keyboard1.bindings.json ]; then
+	mv "$BASEPATH"/sm64nx/build/"$VERSION"_"$TARGET"/keyboard1.bindings.json "$SHARE"/sm64nx/
+	ln -s "$SAVEDIR"keyboard1.bindings.json "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/keyboard1.bindings.json
+fi
+
+if [ "$COMMAND" = "purge" ]; then
+	redecho Wiping folder, backup, savedir, icon, and shortcuts...
+	for preset in sm64ex sm64nx sm64ex-coop render96ex cheaterex sm64dos sm64-portweb sm64exweb sm64-port-android-base androidex sm64pc sm64-port r96proto r96alpha emm-ody coop-unstable
+do
+	printf $preset
+	if [ -d "$BASEPATH"/$preset ]; then
+		rm -rf "$BASEPATH"/$preset 
+	fi
+	printf "."
+	if [ -d "$BASEPATH"/$preset.old ]; then
+		rm -rf "$BASEPATH"/$preset.old
+	fi
+	printf "."
+	if [ -d "$SHARE"/$preset ]; then
+		rm -rf "$SHARE"/$preset
+	fi
+	printf "."
+	if [ -f "$SHARE"/icons/$preset.* ]; then
+		rm "$SHARE"/icons/$preset.* 
+	fi
+	printf "."
+		if [ -f "$SHARE"/applications/$preset.desktop ]; then
+		rm "$SHARE"/applications/$preset.desktop
+	fi
+	printf "."
+	if [ -f ${XDG_DESKTOP_DIR:-$HOME/Desktop}/$preset* ]; then
+		rm ${XDG_DESKTOP_DIR:-$HOME/Desktop}/$preset*
+	fi
+	printf "."
+	if [ -d /Applications/$preset ]; then #macOS
+		rm -rf /Applications/$preset
+	fi 
+	printf "."
+	if [ -f "$USERPROFILE"'/Desktop/Super Mario 64 ('"$preset"')'.url ]; then #windows
+		rm "$USERPROFILE"'/Desktop/Super Mario 64 ('"$preset"')'.url
+	fi
+done
+	printf "."
+	if [ -d "$BASEPATH"/djgpp ]; then
+		rm -rf "$BASEPATH"/djgpp
+	fi
+	printf "."
+	if [ -d "$BASEPATH"/android-sdk ]; then
+		rm -rf "$BASEPATH"/android-sdk
+	fi
+	printf "."
+	if [ -d "$BASEPATH"/emsdk ]; then
+		rm -rf "$BASEPATH"/emsdk
+	fi
+	rm -rf "$SMLINUX"
+	echo	
+	echo Note this did not remove any packages installed as build tools or dependencies.
+	echo Remove those with your package manager.
+	echo And of course you must delete smlinux itself from "$PATHDIR"
+    exit
+fi
+
+if [ -f ~/.smlinuxUpdate ]; then 
+	rm ~/.smlinuxUpdate
+	echo Script Update Complete.
+	if [ "$COMMAND" = "upgrade" ]; then 
+		exit
+	fi
+elif [ "$COMMAND" = "upgrade" ]; then
+	greenecho Checking smlinux github repository for updates....
+	scriptUpdate "$COMMAND" "$2" "$3" "$4" "$5" "$6"
+else   # The real start, the rest was script preperation and setup. 
+	tput setab 0  # black background
+	tput setaf 6  # cyan text
+	echo '/------------------------------'"$TIMESTAMP"'----------------------------\'
+	echo "|   Super Mario 64 Install * Build * Update Script for Linux and macOS   |"
+	echo "|                                                                        |"
+	echo "|          Command Line Usage: smlinux <command> <options>               |"
+	echo "| Commands                                                               |"
+	echo "|  update: Update existing sm64 source & build (preserves modifications) |"
+	echo "|   build: Get/reset sm64 source repo & build (renames existing folder)  |"
+	echo "|   clone: Get/reset sm64 source repo & extract rom (no addons/build)    |"
+	echo "|  config: Opens smlinuxcfg.txt in an editor (without building)          |"
+	echo "|   reset: Resets smlinux configuration file to default settings         |"
+	echo "| depends: Install dependencies (automatic during smlinux installation)  |"
+	echo "| upgrade: Upgrade smlinux to latest version from github (no build)      |"
+	echo "|   purge: Remove all files and folders obtained or created by smlinux   |"
+	echo "|    help: Display all smlinux commands and options and open faq url     |"
+	if [ "$COMMAND" = "help" ]; then
+		echo "| rebuild: rebuild existing or previously failed build with no changes   |"
+		echo "|                                                                        |"
+		echo "| Options:   --hd  install HD add-ons (ignore InstallHD=0)               |"
+		echo "|           --sgi  install Render96 SGI model pack (ignore InstallSGI=0) |"
+		echo "|        --config  prompt to edit config before build (ignore CONFIG=0)  |"
+		echo "|          --nano  use nano instead of GUI to edit configuration file    |"
+		echo "|                                                                        |"
+		echo "--------------------------------------------------------------------------"
+		tput setaf 7 # white text
+		if [ ! "$OP1" = "--noweb" ]; then
+			"$OPEN" "https://github.com/enigma9o7/smlinux#frequently-asked-questions" &disown
+		fi
+		exit
+	else
+		echo "|                                                                        |"
+		echo "--------------------------------------------------------------------------"
+	fi
+	greenecho [1] Preparing for "$COMMAND"...
+	if [ ! -d "$SMLINUX"/.git ] || [ "$DEPENDS" = 1 ] || [ "$COMMAND" = "depends" ]; then
+		if [ "$OSX_BUILD" = 1 ]; then
+			bluecho "Installing dependencies for macOS..."
+			if ! command -v brew &> /dev/null; then
+    			bluecho Installing Homebrew package manager...
+				bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install.sh)"
+			fi
+			if ! command -v brew &> /dev/null; then
+				echo FATAL ERROR Could not install homebrew, thus cannot install other stuff.  
+				endnow
+			fi
+			brew install libxdg-basedir coreutils wget newt nano go zip unzip unrar p7zip python3 PyQt5
+			brew install git make gcc@9 mingw-w64 sdl2 pkg-config glew glfw3 libusb audiofile zstd
+			go get github.com/machinebox/appify
+			if [ ! ~/.nanorc ]; then
+				echo 'include /usr/local/share/nano/*.nanorc' >"$HOME"/.nanorc
+			fi
+			touch /Applications/writetest # requests permission, used for shortcut later
+			touch "$HOME"/Desktop/writetest # requests permission, used for shortcut later
+			rm /Applications/writetest "$HOME"/Desktop/writetest
+			if [ ! -d /Library/Developer/CommandLineTools/usr/bin ]; then
+				echo Installing Apple XCode Command Line Tools
+				xcode-select --install
+				whiptail --title "smlinux paused" --msgbox "  Apple Xcode Command Line Tools were not found.\n\n     smlinux has started the Apple installer\n          but you must finish it.\n\nSelect OK to proceed when installation complete.\n" 12 55 2>&1
+			fi
+		elif command -v apt &> /dev/null && [ "$USER" = "root" ]; then
+			bluecho "Updating package list and installing dependencies..."
+			apt update
+			apt install -y build-essential bsdmainutils binutils wget git python3 libaudiofile-dev libglew-dev libsdl2-dev libusb-1.0-0-dev libzstd-dev python3-pip python3-pyqt5 zenity mplayer zip unzip unrar p7zip-full
+		elif command -v sudo &> /dev/null && command -v apt &> /dev/null; then
+			bluecho "Updating package list and installing dependencies..."
+			sudo apt update
+			sudo apt install -y build-essential bsdmainutils binutils wget git python3 libaudiofile-dev libglew-dev libsdl2-dev libusb-1.0-0-dev libzstd-dev python3-pip python3-pyqt5 zenity mplayer zip unzip unrar p7zip-full
+		elif [ "$MSYS" = 1 ]; then
+			bluecho Downloading and installing needed dependencies...
+			msysdepends
+		elif command -v sudo &> /dev/null && command -v pacman &> /dev/null; then # i dont run arch
+			bluecho pacman found. trying dependencies for arch 
+			bluecho only tested on manjaro vm.  if u run arch plz lmk if u need anything else
+			redecho sudo pacman -S base-devel python audiofile sdl2 glew python-zstandard python-pip zstd zenity unzip zip unrar --needed --noconfirm
+			sudo pacman -S base-devel python audiofile sdl2 glew python-zstandard python-pip zstd zenity unzip zip unrar --needed --noconfirm
+		else
+			bluecho "Installing dependencies specified in smlinux configuration file:"
+			echo "$Linux"
+			$Linux
+			if [ ! -f "$HOME"/.nanorc ] && [ -d /usr/share/nano ]; then # for msys
+				echo 'include /usr/share/nano/*.nanorc' >~/.nanorc
+			fi
+		fi
+		if [ ! -f "$SMLINUX"/config.py ]; then
+			wget -q https://raw.githubusercontent.com/enigma9o7/smlinux/master/config.py -P "$SMLINUX"
+		fi
+		if [ ! "$MSYS" = 1 ]; then
+			python3 -m pip install --upgrade pip
+			python3 -m pip install numpy
+			if [ ! "OSX_BUILD" = 1 ] && ! command -v apt &> /dev/null; then
+				python3 -m pip install --upgrade pip
+				python3 -m pip install PyQt5
+			fi
+			if [ "`pip3 list --format=columns | grep numpy`" = "" ]; then
+				pip install numpy # this worked on ubuntu 16 
+			fi
+		fi
+	elif ! command -v gcc &> /dev/null; then
+		redecho ERROR: The GNU Compiler Collection is not installed.  Please install dependencies.
+		endnow
+	elif [ "$OSX_BUILD" = 1 ] && [ ! -d /Library/Developer/CommandLineTools/usr/bin ] ; then
+		pinkecho Warning: Apple X-code command line tools not found.  Triggering installation...
+		xcode-select --install
+		whiptail --title "smlinux paused" --msgbox "  Apple Xcode Command Line Tools were not found.\n\n     smlinux has started the Apple installer\n          but you must finish it.\n\nSelect OK to proceed when installation complete.\n" 12 55 2>&1
+	fi
+	if [ ! "$COMMAND" = "help" ] && [ ! "$COMMAND" = "depends" ] && [ "$CONFIG" = 1 ]; then 
+		doconfig
+		loadconfig "$COMMAND" "$2" "$3" "$4" "$5" "$6"
+	fi
+	if [ "$PRESET" = "sm64nx" ] && ([ ! -d "$BASEPATH"/"$PRESET/build" ] || [ "$COMMAND" = "depends" ]); then
+		bluecho "Installing required build tools for sm64nx..."
+		python3 -m pip install pillow zstandard tqdm xxhash
+		gcccheck
+	elif [ ! "$ANDROID" = 0 ]; then
+		bluecho "Loading Android SDK..."
+		androidsdk
+	elif [ "$TARGET_WEB" = 1 ]; then
+		bluecho "Loading Enscriptem for Web Target..."
+		loademsdk
+	elif [ "$TARGET" = "dos" ]; then
+		bluecho "Loading djgpp for DOS Target..."
+		dodos
+	elif [ "$WINDOW_API" = "SDL1" ] && ! command -v sdl-config &> /dev/null; then
+		bluecho Installing SDL 1.2 development libraries...
+		if command -v apt &> /dev/null; then
+			if command -v sudo &> /dev/null; then
+				sudo apt install libsdl1.2-dev 
+			elif [ "$USER" = "root" ]; then
+				apt install libsdl1.2-dev
+			fi
+		elif [ "$MSYS" ] = 1; then
+			if [ "$BITS" = 64 ]; then
+				pacman -S mingw-w64-x86_64-SDL --noconfirm --needed
+			elif [ "$BITS" = 32 ]; then
+				pacman -S mingw-w64-i686-SDL --noconfirm --needed
+			fi
+		fi
+		if ! command -v sdl-config &> /dev/null; then
+			redecho ERROR: Could not install SDL 1.2 libraries.  Install sdl1 or try sdl2.
+			endnow
+		fi
+	elif [ ! "$COMMAND" = "depends" ] && [ ! "$DEPENDS" = 1 ] && [ -d "$SMLINUX"/.git ]; then
+		echo "This is not first build, skipping dependencies."
+	else
+		echo "Prepared."
+	fi
+	if [ ! -f "$SMLINUX"/baserom."$VERSION".z64 ]; then
+		echo "Verifying ROM..."
+		cd "$LAUNCH_DIR"
+		if [ -f "$1" ]; then 
+			cp "$1" "$SMLINUX"/baserom."$VERSION".z64
+			vettrom
+		fi
+		if [ ! -f "$SMLINUX"/baserom."$VERSION".z64 ]; then
+			if [ -f "$BASEPATH"/sm64pc/baserom."$VERSION".z64 ]; then
+				cp "$BASEPATH"/sm64pc/baserom."$VERSION".z64 "$SMLINUX"
+				vettrom
+			fi
+			if [ -f "$BASEPATH"/sm64ex/baserom."$VERSION".z64 ] && [ ! -f "$SMLINUX"/baserom."$VERSION".z64 ]; then
+				cp "$BASEPATH"/sm64ex/baserom."$VERSION".z64 "$SMLINUX"
+				vettrom
+			fi
+			if [ -f "$BASEPATH"/sm64-port/baserom."$VERSION".z64 ] && [ ! -f "$SMLINUX"/baserom."$VERSION".z64 ]; then
+				cp "$BASEPATH"/sm64-port/baserom."$VERSION".z64 "$SMLINUX"
+			vettrom
+			fi
+		fi
+		echo
+		if [ -f "$SMLINUX"/baserom."$VERSION".z64 ]; then
+			echo Romfile located and verified.
+		elif [ -f "$1" ]; then
+			exec 2> >(grep -v GtkDialog >&2) # Supress GTK Dialog Warnings
+			zenity --error --text="ERROR: Specified file is not original Super Mario 64 ROM image\nMake sure VERSION= is set to the correct region if not US romfile\n" --title="Your installation is incomplete." --width=640 &disown	
+			sleep 1			
+			redecho "ERROR: Specified file is not original Super Mario 64 ROM image or VERSION set wrong."
+			echo
+		fi
+		redecho "Please select Super Mario 64 romfile to begin."	
+		if [ "$OSX_BUILD" = 1 ]; then
+			cd $HOME
+			USERFILE=$(osascript -e 'set macpath to choose file' -e 'set unixpath to posix path of macpath')
+		else
+			exec 2> >(grep -v GtkDialog >&2) # Supress GTK Dialog Warnings
+			USERFILE=`zenity --file-selection --title="Select your Super Mario 64 romfile" --filename $HOME/ --file-filter='romfiles | *.z64 *.v64 *.n64' --file-filter='allfiles | *'`
+		fi
+		if [ -f "$USERFILE" ]; then
+			cp "$USERFILE" "$SMLINUX"/baserom."$VERSION".z64
+			vettrom
+		fi
+		if [ ! -f "$SMLINUX"/baserom."$VERSION".z64 ]; then
+			echo
+			redecho "Error processing ROM: Something did not work like it was supposed to!"
+			echo "An unmodified Super Mario 64 romfile in big endian (Z64) format is needed."
+			echo "Try dragging and dropping romfile into this terminal window from file manager."
+			echo "If that does not work, some file managers (like pcmanfm) you can right click the"
+			echo "file to select \"copy path\" then paste it here followed by enter. "
+			echo "Lastly, you can try typing the full path and filename then press enter."
+			echo "If that still does not work, romfile must be corrupt or its a smlinux problem."
+			echo
+			printf "Filename? >"
+			read USERFILE
+			if [ -f "$USERFILE" ]; then
+				cp "$USERFILE" "$SMLINUX"/baserom."$VERSION".z64
+				vettrom
+			fi
+		fi
+		if [ ! -f "$SMLINUX"/baserom."$VERSION".z64 ]; then
+			echo smlinux exiting incomplete. Need valid Super Mario 64 romfile to proceed.
+			endnow
+		fi
+	fi
+	greenecho [2] Checking smlinux github repository for updates....
+	if [ "$AutoUpdate" = 1 ] || [ "$COMMAND" = "upgrade" ]; then
+		scriptUpdate "$COMMAND" "$2" "$3" "$4" "$5" "$6"
+	else
+		pinkecho Warning: AutoUpdate Disabled. You might be using an old version of smlinux.
+		echo "For the latest fixes and features, please set AutoUpdate=1 in configuration."
+	fi
+fi
+
+if [ "$COMMAND" = "depends" ]; then
+		theend
+elif [ "$COMMAND" = "rebuild" ]; then
+	if [ ! -d "$BASEPATH"/"$PRESET" ]; then
+		echo
+		redecho ERROR: No "$BASEPATH"/"$PRESET" folder to rebuild!
+		echo Specify smlinux build for a fresh build.
+		exit
+	fi
+	if [ -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET".failed ]; then
+		greenecho [3] Restoring failed build...
+		if [ -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET" ]; then
+			if [ -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET".old ]; then
+				rm -rf "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET".old
+			fi
+			mv "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET" "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET".old
+		fi
+		mv "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET".failed "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"
+	else
+		greenecho [3] Skipping source update and old build rename.
+	fi
+	greenecho [4] Skipping modifications.
+elif [ "$COMMAND" = "update" ]; then
+	if [ ! -d "$BASEPATH"/"$PRESET" ]; then
+		echo
+		redecho ERROR: No "$BASEPATH"/"$PRESET" folder to update!
+		echo Specify smlinux build for a fresh build.
+		exit
+	fi
+	greenecho [3] Checking "$PRESET" github repository for updates...
+	if [ ! "$ANDROID" = 0 ]; then
+		cd "$BASEPATH"/"$ANDROID"
+	else
+		cd "$BASEPATH"/"$PRESET"
+	fi
+	if [ "$PRESET" = "sm64nx" ] && [ -f import/.assets-local.txt ]; then
+		rm import/.assets-local.txt
+	fi
+	git fetch
+	if [ "$(git diff HEAD origin/HEAD)" != "" ]; then
+		git merge
+	fi
+	if [ "$?" = "1" ]; then
+		cd "$BASEPATH"/"$PRESET"
+		bluecho Source update attempt failed, removing patches...
+		if [ -f "$BASEPATH"/"$PRESET"/enhancements/3d_coin*.patch ]; then
+			git apply -R enhancements/3d_coin*.patch
+		fi
+		if [ -f "$BASEPATH"/"$PRESET"/enhancements/60fps ]; then
+			git apply -R enhancements/60fps*.patch
+		fi
+		if [ -f "$BASEPATH"/"$PRESET"/enhancements/DynOS*.patch ]; then
+			git apply -R enhancements/DynOS*.patch
+		fi
+		removecheater
+		if [ -f "$BASEPATH"/"$PRESET"/enhancements/menu-arrows.patch ]; then
+			git apply -R enhancements/menu-arrows.patch
+		fi
+		git merge
+		if [ "$?" = "1" ]; then
+			redecho ERROR: Unable to merge source updates from github.
+			echo Rebuild will continue with existing source.
+		else
+			echo Update Succesful.
+		fi
+		bluecho Reapplying previously removed patches...
+		if [ -f "$BASEPATH"/"$PRESET"/enhancements/60fps ]; then
+			echo FPS60...
+			git apply enhancements/60fps*.patch
+		fi
+		if [ -f "$BASEPATH"/"$PRESET"/enhancements/DynOS*.patch ]; then
+			echo DynOS...
+			git apply enhancements/DynOS*.patch
+		fi
+		if [ -f "$BASEPATH"/"$PRESET"/enhancements/3d_coin*.patch ]; then
+			echo 3D Coins...
+			git apply enhancements/3d_coin*.patch
+		fi
+		if [ -f "$BASEPATH"/"$PRESET"/enhancements/menu-arrows.patch ]; then
+			echo Menu Arrows...
+			git apply enhancements/menu-arrows.patch
+		fi
+	else
+		echo "$GIT" is up to date.
+	fi
+	if [ ! "$ANDROID" = 0 ]; then
+		git submodule init
+		git submodule update	
+		if [ -d "$BASEPATH"/"$ANDROID"/app/build ]; then
+			echo Wiping old Android Build...
+			rm -rf "$BASEPATH"/"$ANDROID"/app/build
+			rm -rf "$BASEPATH"/"$ANDROID"/app/.externalNativeBuild
+		fi
+	fi
+	greenecho [4] Applying pre-build modifications...
+	if [ "$InstallHD" = 1 ]; then
+		dohd
+	elif [ "$InstallSGI" = 1 ]; then
+		pinkecho Warning: Render96 models selected without InstallHD.
+		dosgi
+	else
+		pinkecho Warning: HD add-ons are disabled in smlinux configuration.
+		echo set InstallHD=1 if you would like these installed and udpated.
+	fi
+	if [ ! "$ANDROID" = 0 ] && [ -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res/gfx ]; then
+		echo Updating Android basepack...
+		cd "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res
+		zip -q0ur hdbase gfx
+		# rm -rf gfx
+	fi
+	dofps
+	docheats
+	dodynos
+	domymenu
+fi
+if [ "$COMMAND" = "update" ]|| [ "$COMMAND" = "rebuild" ]; then
+	greenecho [5] Recompiling "$PRESET"...
+	domake
+	if [ ! -f "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64."$VERSION".f3dex2* ]; then
+		redecho ERROR: "$PRESET" Build Failure - output file not found.
+		if [ -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET".old ]; then
+			bluecho "Restoring previous build..."
+			if [ -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET" ]; then 
+				if [ -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET".failed ]; then
+					rm -rf "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET".failed
+				fi
+				mv "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET" "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET".failed
+			fi
+			mv "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET".old "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"
+		fi
+		endnow
+	fi
+	if [ -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET".old/res ] && [ "$ANDROID" = 0 ]; then
+		greenecho [6] Restoring External Resources...
+		cp -rpn "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET".old/res/. "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res
+	elif [ -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET".old/romfs ]; then
+		greenecho "[6] Restoring ROM and ROM Filesystem (paks)"
+		cp -rpn "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET".old/romfs/. "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/romfs
+		ln -s "$SMLINUX"/baserom."$VERSION".z64 "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/baserom."$VERSION".z64
+		if [ -f "$SAVEDIR"/sm64.sav ]; then
+			ln -s "$SAVEDIR"/sm64.sav "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64.sav 
+		fi
+		if [ -f "$SAVEDIR"/sm64.log ]; then
+			ln -s "$SAVEDIR"/sm64.log "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64.log 
+		fi
+		if [ -f "$SAVEDIR"/conf.bin ]; then
+			ln -s "$SAVEDIR"/conf.bin "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/conf.bin
+		fi
+		if [ -f "$SAVEDIR"/gamepad1.bindings.json ]; then
+	 		ln -s "$SAVEDIR"/gamepad1.bindings.json "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/gamepad1.bindings.json
+	 	fi
+	 	if [ -f "$SAVEDIR"/keyboard1.bindings.json ]; then
+			ln -s "$SAVEDIR"/keyboard1.bindings.json "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/keyboard1.bindings.json
+		fi
+	elif [ "$GIT" = "teamsalta/sm64nx" ]; then
+		echo "[6] Preparing ROM and ROM Filesystem (paks)"
+		prepnx	
+	elif [ "$ANDROID" = 0 ]; then
+		greenecho [6] No resources found in previous build, skipping restore.
+	fi
+	if [ "$TARGET" = "web" ]; then
+		greenecho [7] "$COMMAND" complete.  
+	elif [ ! "$ANDROID" = 0 ] && [ ! -f "$BASEPATH"/"$ANDROID"/app/build/outputs/apk/debug/*.apk ]; then
+		echo
+		redecho "ERROR: Build Failure.  Android Package Kit (apk) not found."
+		endnow
+	elif [ "$ANDROID" = 0 ] && [ "$TARGET" = "pc" ] ; then
+		greenecho [7] Verifying Menu Entry....
+		makedesktop
+		bluecho smlinux "$COMMAND" complete. 
+	elif [ ! "$ANDROID" = 0 ]; then
+		mv "$BASEPATH"/"$ANDROID"/app/build/outputs/apk/debug/app-debug.apk "$BASEPATH"/"$ANDROID"/app/build/outputs/apk/debug/sm64."$VERSION".f3dex2e.apk
+		bluecho smlinux "$COMMAND" complete.   
+	elif [ "$TARGET" = "dos" ]; then
+		mv "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64."$VERSION".f3dex2e.exe "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64.exe
+		bluecho smlinux "$COMMAND" complete.  
+	fi
+	rungame
+	if [ "$TARGET" = "dos" ] && [ ! -f /usr/bin/dosbox ]; then
+		true
+	elif [ "$EXTERNAL_DATA" = 0 ]; then
+		sleep 5
+	elif [ "$GIT" = "render96/render96ex" ] && [ "$InstallHD" = 1 ]; then
+		sleep 30
+	else 
+		sleep 10
+	fi
+	theend
+fi
+if [ -d "$BASEPATH"/"$PRESET" ]; then
+	if [ ! "$ANDROID" = 0 ]; then
+		pinkecho Warning: "$ANDROID" directory already exists! 
+		echo Renaming to "$BASEPATH"/"$ANDROID".old...
+		if [ -d "$BASEPATH"/"$ANDROID".old ]; then
+			rm -rf "$BASEPATH"/"$ANDROID".old
+		fi
+		mv "$BASEPATH"/"$ANDROID" "$BASEPATH"/"$ANDROID".old
+	else
+		if [ -d "$BASEPATH"/"$PRESET".old ]; then
+			rm -rf "$BASEPATH"/"$PRESET".old
+		fi
+		mv "$BASEPATH"/"$PRESET" "$BASEPATH"/"$PRESET".old
+		if [ -d "$BASEPATH"/"$PRESET".old/.git  ]; then
+			greenecho [3] Resetting "$PRESET" and updating source from repository...
+			mkdir "$BASEPATH"/"$PRESET"
+			cd "$BASEPATH"/"$PRESET"
+			cp -r "$BASEPATH"/"$PRESET".old/.git .
+			git checkout "$BRANCH" -- .
+			git reset --quiet --hard 
+			git pull --no-rebase			
+		fi
+		if [ ! -f Makefile ] || [ ! -d .git ]; then
+			pinkecho Warning: Existing "$PRESET" folder unable to restore "$GIT".
+			cd "$BASEPATH"
+			rm -rf "$PRESET"
+		fi
+		pinkecho Previous "$PRESET" folder was saved as "$PRESET".old and is safe to delete.
+	fi
+fi
+if [ ! -d "$BASEPATH"/"$PRESET" ]; then
+	cd "$BASEPATH"
+	if [ ! "$ANDROID" = 0 ]; then
+		greenecho "[3] Downloading sm64 Android source from "$GIT" repository..."
+		git clone git://github.com/"$GIT" -b "$BRANCH" "$ANDROID"
+		cd "$ANDROID"
+		git submodule init
+		git submodule update
+		./getSDL.sh
+	else
+		greenecho "[3] Downloading sm64 source from "$GIT" repository... "
+		git clone git://github.com/"$GIT" -b "$BRANCH" "$PRESET"
+	fi
+fi
+if [ ! -d "$BASEPATH"/"$PRESET" ]; then
+	redecho "ERROR: Could not reach github."
+	endnow
+elif [ ! -f "$BASEPATH"/"$PRESET"/baserom."$VERSION".z64 ]; then
+	ln -s "$SMLINUX"/baserom."$VERSION".z64 "$BASEPATH"/"$PRESET"/baserom."$VERSION".z64
+fi
+if [ "$OSX_BUILD" = 1 ]; then
+	macprep
+fi
+greenecho [4] Preparing Assets from ROM...
+if [ "$PRESET" = "sm64nx" ]; then
+	prepnx
+else 
+	extractrom	
+	# cd "$BASEPATH"/"$PRESET"
+	# time python3 extract_assets.py "$VERSION"
+fi
+if [ "$COMMAND" = "clone" ]; then
+	theend
+fi
+greenecho [5] Applying Enhancements...
+if [ ! -d "$SAVEDIR" ] && [ "$ANDROID" = 0 ] && [ "$TARGET_WEB" = 0 ]; then
+	echo Creating "$SAVEDIR" for save files.
+	mkdir "$SAVEDIR"
+fi
+if [ -f "$SAVEDIR"/sm64config.txt ] || [ -f "$SAVEDIR"/CHEATER64config.txt ] || [ -f "$SAVEDIR"/conf.bin ]; then
+	printf "SM64 configuration file found. "
+elif [ "$PRESET" = "sm64-port" ] || [ "$PRESET" = "sm64nx" ]; then
+	echo No compatible sm64 configuration files for this version, game will create one.
+elif [ "$TARGET_WEB" = 0 ] && [ "$ANDROID" = 0 ]; then
+	if [ -f "$SHARE"/sm64ex/sm64config.txt ]; then
+		cp "$SHARE"/sm64ex/sm64config.txt "$SAVEDIR"
+		echo Copied configuration from sm64ex.
+	elif [ -f "$SMLINUX"/sm64config.txt ]; then
+		cp "$SMLINUX"/sm64config.txt "$SAVEDIR"
+		echo Copied configuration from sm64pc.
+	elif [ -f "$SHARE"/render96ex/sm64config.txt ]; then
+		cp "$SHARE"/render96ex/sm64config.txt "$SAVEDIR"
+		echo Copied configuration from render96ex
+	elif [ -f "$SHARE"/sm64ex-coop/sm64config.txt ]; then
+		cp "$SHARE"/sm64ex-coop/sm64config.txt "$SAVEDIR"
+		echo Copied configuration from sm64ex-coop
+	else 
+		echo No compatible sm64 configuration file found, game will create one.
+	fi
+	if [ "$GIT" = "s4Ys369/cheaterex" ] && [ -f "$SAVEDIR"/sm64config.txt ]; then
+		mv "$SAVEDIR"/sm64config.txt "$SAVEDIR"/CHEATER64config.txt
+	fi
+fi
+if [ -f "$SAVEDIR"/sm64_save_file.bin ] || [ -f "$SAVEDIR"/CHEATER64_save_file.bin ] || [ -f "$SAVEDIR"/sm64.sav ] || [ -f "$SAVEDIR"/render96_save_file_0.sav ] ; then
+	echo SM64 save file found.
+elif [ "$GIT" = "teamsalta/sm64nx" ] && [ -f "$SHARE"/sm64-port/sm64_save_file.bin ]; then
+	echo Copying save file from sm64-port...
+	cp "$SHARE"/sm64-port/sm64_save_file.bin "$SAVEDIR"/sm64.sav
+	ln -s "$SAVEDIR"/sm64.sav "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64.sav 
+	touch "$SAVEDIR"/sm64.log
+	ln -s "$SAVEDIR"/sm64.log "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64.log 
+elif [ "$GIT" = "teamsalta/sm64nx" ]; then
+	touch "$SAVEDIR"/sm64.log
+	ln -s "$SAVEDIR"/sm64.log "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64.log 
+elif [ "$GIT" = "sm64-port/sm64-port" ] && [ -f "$SHARE"/sm64nx/sm64.sav ]; then
+	cp "$SHARE"/sm64nx/sm64.sav "$SAVEDIR"/sm64_save_file.bin
+	echo Copied Save file from sm64nx
+elif [ "$GIT" = "render96/render96ex" ] && [ -f "$SHARE"/render96ex/render96_save_file_0.sav ]; then
+	cp "$SHARE"/render96ex/render96_save_file_0.sav "$SAVEDIR"
+	echo Copied Save file from render96ex
+elif [ "$GIT" = "render96/render96ex" ] && [ -f "$SHARE"/r96alpha/render96_save_file_0.sav ]; then
+	cp "$SHARE"/r96alpha/render96_save_file_0.sav "$SAVEDIR"
+	echo Copied Save file from r96alpha
+elif [ "$GIT" = "render96/render96ex" ] && [ -f "$SHARE"/r96proto/render96_save_file_0.sav ]; then
+	cp "$SHARE"/r96proto/render96_save_file_0.sav "$SAVEDIR"
+	echo Copied Save file from r96proto
+elif [ "$TEXTSAVES" = 1 ]; then
+	echo No compatible text save file found.
+elif [ "$ANDROID" = 0 ] && [ "$TARGET_WEB" = 0 ]; then
+	if [ "$GIT" = "sm64-port/sm64-port" ] && [ -f "$SHARE"/sm64nx/sm64.sav ]; then
+		cp "$SHARE"/sm64nx/sm64.sav "$SAVEDIR"/sm64_save_file.bin
+		echo Copied save file from sm64nx.
+	elif [ "$GIT" = "teamsalta/sm64nx" ] && [ -f "$SHARE"/sm64-port/sm64_save_file.bin ]; then
+		cp "$SHARE"/sm64-port/sm64_save_file.bin "$SAVEDIR"/sm64.sav
+		echo Copied save file from sm64-port.
+	elif [ "$GIT" = "sm64-port/sm64-port" ] || [ "$GIT" = "teamsalta/sm64nx" ]; then
+		echo No compatible save file found.
+	elif [ -f "$SHARE"/sm64ex/sm64_save_file.bin ]; then
+		cp "$SHARE"/sm64ex/sm64_save_file.bin "$SAVEDIR"
+		echo Copied save file from sm64ex.
+	elif [ -f "$SHARE"/sm64-port/sm64_save_file.bin ]; then
+		cp "$SHARE"/sm64-port/sm64_save_file.bin "$SAVEDIR"
+		echo Copied save file from sm64-port.
+	elif [ -f "$SMLINUX"/sm64_save_file.bin ]; then
+		cp "$SMLINUX"/sm64_save_file.bin "$SAVEDIR"
+		echo Copied save file from sm64pc.
+	elif [ -f "$SHARE"/cheaterex/CHEATERex_save_file.bin ]; then
+		cp "$SHARE"/cheaterex/CHEATER64_save_file.bin "$SAVEDIR"/sm64_save_file.bin
+		echo Copied save file from cheaterex
+	elif [ -f "$SHARE"/sm64nx/sm64.sav ]; then
+		cp "$SHARE"/sm64nx/sm64.sav "$SAVEDIR"/sm64_save_file.bin
+		echo Copied save file from sm64nx.
+	else 
+		echo No compatible save file found.
+	fi
+	if [ "$GIT" = "s4Ys369/cheaterex" ] && [ -f "$SAVEDIR"/sm64_save_file.bin ]; then
+		mv "$SAVEDIR"/sm64_save_file.bin "$SAVEDIR"/CHEATER64_save_file.bin
+	fi
+fi
+if [ "$InstallHD" = 1 ]; then 
+	dohd
+elif [ "$InstallSGI" = 1 ]; then
+	dosgi
+elif [ "$TARGET" = "pc" ]; then
+	pinkecho Warning: InstallHD Disabled so HD addons not being added.
+fi
+dofps
+docheats
+dodynos
+domymenu
+if [ "$PRESET" = "emm-ody" ] && [ ! -f "$BASEPATH"/"$PRESET"smo.cappy_assets.zip ]; then
+    echo Getting smo cappy assets...
+    cd "$BASEPATH"/"$PRESET" 
+    wget -q https://cdn.discordapp.com/attachments/723992726319792140/754402820588961882/smo.cappy_assets.zip
+    unzip -q -o smo.cappy_assets
+fi
+if [ "$BRANCH" = "sm64ex_nightly" ] && [ -f "$BASEPATH"/"$PRESET"/enhancements/pro1.patch ]; then
+	echo "Applying Pro¹ Android Customizations..."
+	cd "$BASEPATH"/"$PRESET"
+	cp "$SMLINUX"/pro1.patch enhancements
+	git apply enhancements/pro1.patch
+fi
+greenecho [6] Compiling "$PRESET"...
+domake
+if [ ! -f "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64."$VERSION".f3dex2* ]; then
+	echo
+	redecho ERROR: "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64."$VERSION".f3dex2e was not built.
+	endnow
+elif [ ! "$ANDROID" = 0 ] && [ ! -f "$BASEPATH"/"$ANDROID"/app/build/outputs/apk/debug/app-debug.apk ]; then
+	echo
+	echo ERROR: Build Failure.  Expected apk file not found.
+	endnow
+elif [ ! "$ANDROID" = 0 ]; then
+	mv "$BASEPATH"/"$ANDROID"/app/build/outputs/apk/debug/app-debug.apk "$BASEPATH"/"$ANDROID"/app/build/outputs/apk/debug/sm64."$VERSION".f3dex2e.apk
+elif [ "$TARGET" = "dos" ]; then
+	mv "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64."$VERSION".f3dex2e.exe "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/sm64.exe
+elif [ -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET".old/res ]; then
+	if [ -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET".old/res/.git ]; then
+		mv -n "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET".old/res/.git "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res
+	fi
+	mv -n "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET".old/res/* "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"/res > /dev/null 2>&1
+	rm -rf "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET".old # first build there is no old build
+elif [ -d "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET".old/romfs ]; then
+	mv -n "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET".old/* "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET"
+	rm -rf "$BASEPATH"/"$PRESET"/build/"$VERSION"_"$TARGET".old
+fi
+if [ "$TARGET" = "pc" ] && [ "$ANDROID" = 0 ]; then
+	greenecho [7] Creating Desktop Shortcut and Menu Entry...
+	makedesktop
+else
+	greenecho [7] Skipping menu entry for non PC version.
+fi
+bluecho Build Succesful! 
+rungame
+if [ -f "$HOME"/.smlinuxNopath ]; then
+	rm "$HOME"/.smlinuxNopath
+	exec 2> >(grep -v GtkDialog >&2) # Supress GTK Dialog Warnings
+	zenity --info --text="You did not have a home folder in your path so "$HOME"/bin was created.\n\nRestart terminal before running smlinux again." --title="Your installation is complete." --width=500 &disown
+	echo You did not have a home folder in your path so "$HOME"/bin was created.
+	echo Restart terminal before running smlinux again.
+	echo
+	greenecho smlinux is complete 
+	for i in {1..30}
+do
+	tput setab 0  # black background
+	tput setaf 1  # red text
+	tput bold
+	printf "Please close this terminal.  "
+	sleep 30
+done
+	kill -9 $PPID
+elif [ "$EXTERNAL_DATA" = 0 ]; then
+	sleep 4
+elif  [ "$GIT" = "render96/render96ex" ] && [ "$InstallHD" = 1 ]; then
+	sleep 28
+else
+	sleep 8
+fi
+theend
